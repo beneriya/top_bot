@@ -55,6 +55,10 @@ NO_CHAR_REQUIRED = {
     "givemoney", "releaseprison", "giverole", "removerole",
     "level_role_add",
     "eruuljuuleh", "prisonlist",
+    # Admin commands
+    "adminsetage", "adminsetgender", "adminsetsexuality", "adminsetjob",
+    "adminrevive", "adminkill", "adminsetbalance", "adminaddbalance",
+    "adminsetlevel", "adminresetchar", "adminsetprison", "adminresetcooldown",
 }
 
 class PrisonTree(app_commands.CommandTree):
@@ -159,7 +163,7 @@ async def on_ready():
         logger.error(f"Sync алдаа: {e}")
 
 async def load_cogs():
-    cogs = ["character", "economy", "levels", "games", "family", "stats", "roles", "substances", "help"]
+    cogs = ["character", "economy", "levels", "games", "family", "stats", "roles", "substances", "help", "admin"]
     for cog in cogs:
         try:
             await bot.load_extension(f"cogs.{cog}")
@@ -173,7 +177,7 @@ async def main():
         await load_cogs()
         token = os.getenv("TOKEN")
         if not token:
-            logger.critical("TOKEN олдсонгүй! .env файлаа шалгана уу.")
+            logger.critical("TOKEN олдонгүй! .env файлаа шалгана уу.")
             return
         await bot.start(token)
 

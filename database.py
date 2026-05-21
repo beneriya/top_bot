@@ -175,6 +175,7 @@ async def init_db():
             "ALTER TABLE character_info ADD COLUMN birth_time TEXT DEFAULT NULL",
             "ALTER TABLE character_info ADD COLUMN last_milestone INTEGER DEFAULT 0",
             "ALTER TABLE character_info ADD COLUMN last_setjob TEXT DEFAULT NULL",
+            "ALTER TABLE character_info ADD COLUMN death_notified INTEGER DEFAULT 0",
         ]:
             try: await db.execute(col)
             except: pass
@@ -368,7 +369,7 @@ async def get_user(user_id: int, guild_id: int) -> dict:
 async def update_balance(user_id: int, guild_id: int, amount: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE users SET balance = MAX(0, balance + ?) WHERE user_id=? AND guild_id=?",
+            "UPDATE users SET balance = MIN(1000000000, MAX(0, balance + ?)) WHERE user_id=? AND guild_id=?",
             (amount, user_id, guild_id)
         )
         await db.commit()
@@ -403,8 +404,4 @@ async def get_rpg(user_id: int, guild_id: int) -> dict:
                 "INSERT INTO rpg (user_id, guild_id) VALUES (?,?)", (user_id, guild_id)
             )
             await db.commit()
-            cur = await db.execute(
-                "SELECT * FROM rpg WHERE user_id=? AND guild_id=?", (user_id, guild_id)
-            )
-            row = await cur.fetchone()
-        return dict(row)
+            cur = await db.execut

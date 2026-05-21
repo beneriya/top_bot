@@ -33,7 +33,7 @@ JOBS: dict = {
     },
     "warehouse": {
         "name_mn": "Агуулхын ажилтан", "emoji": "📦",
-        "salary": (25_000, 55_000),
+        "salary": (2_500, 4_500),
         "course": None, "gender": "male",
         "messages": [
             "Хайрцаг зөөж", "Барааг эмхлэж",
@@ -42,7 +42,7 @@ JOBS: dict = {
     },
     "delivery": {
         "name_mn": "Тэрэгний зөөгч", "emoji": "🛒",
-        "salary": (18_000, 45_000),
+        "salary": (3_000, 4_500),
         "course": None, "gender": "male",
         "messages": [
             "Дэлгүүрт тэрэг зөөж", "Захиалга хүргэж",
@@ -52,7 +52,7 @@ JOBS: dict = {
     # ── Мэргэжил шаардагдахгүй — ЭМЭГТЭЙ ─────────────────────
     "artist": {
         "name_mn": "Зураач", "emoji": "🎨",
-        "salary": (15_000, 70_000),
+        "salary": (1_500, 7_000),
         "course": None, "gender": "female",
         "messages": [
             "Уран зургаа зарж", "Захиалгат зураг зурж",
@@ -61,7 +61,7 @@ JOBS: dict = {
     },
     "service": {
         "name_mn": "Үйлчилгээний ажилтан", "emoji": "💁",
-        "salary": (20_000, 50_000),
+        "salary": (2_000, 5_000),
         "course": None, "gender": "female",
         "messages": [
             "Зочдод үйлчилж", "Кассанд ажилласан",
@@ -70,7 +70,7 @@ JOBS: dict = {
     },
     "operator": {
         "name_mn": "Оператор", "emoji": "📞",
-        "salary": (25_000, 60_000),
+        "salary": (2_500, 6_000),
         "course": None, "gender": "female",
         "messages": [
             "Утасны дуудлага хүлээн авч", "Захиалга бүртгэж",
@@ -80,7 +80,7 @@ JOBS: dict = {
     # ── Курс шаардлагатай — ЯМА Ч ХҮЙС ──────────────────────
     "programmer": {
         "name_mn": "Програмист", "emoji": "💻",
-        "salary": (200_000, 500_000),
+        "salary": (20_000, 50_000),
         "course": "programming", "gender": None,
         "messages": [
             "Python код бичиж", "Алдаа засаж дахин засаж",
@@ -89,7 +89,7 @@ JOBS: dict = {
     },
     "cook": {
         "name_mn": "Тогооч", "emoji": "👨‍🍳",
-        "salary": (80_000, 180_000),
+        "salary": (8_000, 18_000),
         "course": "cooking", "gender": None,
         "messages": [
             "Хоол бэлдэж", "Шинэ рецепт туршиж",
@@ -98,7 +98,7 @@ JOBS: dict = {
     },
     "driver": {
         "name_mn": "Жолооч", "emoji": "🚗",
-        "salary": (60_000, 130_000),
+        "salary": (6_000, 13_000),
         "course": "driving", "gender": None,
         "messages": [
             "Зорчигч тээвэрлэж", "Барааны машин жолоодож",
@@ -107,7 +107,7 @@ JOBS: dict = {
     },
     "doctor": {
         "name_mn": "Эмч", "emoji": "👨‍⚕️",
-        "salary": (300_000, 700_000),
+        "salary": (30_000, 70_000),
         "course": "medical", "gender": None,
         "messages": [
             "Өвчтөн үзэж", "Мэс засал хийж",
@@ -116,7 +116,7 @@ JOBS: dict = {
     },
     "teacher": {
         "name_mn": "Багш", "emoji": "👨‍🏫",
-        "salary": (100_000, 250_000),
+        "salary": (10_000, 25_000),
         "course": "teaching", "gender": None,
         "messages": [
             "Хичээл заадаг", "Шалгалт авч",
@@ -125,7 +125,7 @@ JOBS: dict = {
     },
     "lawyer": {
         "name_mn": "Хуульч", "emoji": "⚖️",
-        "salary": (250_000, 600_000),
+        "salary": (25_000, 60_000),
         "course": "law", "gender": None,
         "messages": [
             "Шүүхэд өмгөөлж", "Гэрээ боловсруулж",
@@ -134,7 +134,7 @@ JOBS: dict = {
     },
     "accountant": {
         "name_mn": "Нягтлан бодогч", "emoji": "📊",
-        "salary": (150_000, 350_000),
+        "salary": (15_000, 35_000),
         "course": "accounting", "gender": None,
         "messages": [
             "Санхүүгийн тайлан гаргаж", "Татвар тооцоолж",
@@ -143,7 +143,7 @@ JOBS: dict = {
     },
     "manager": {
         "name_mn": "Менежер", "emoji": "👔",
-        "salary": (200_000, 450_000),
+        "salary": (20_000, 45_000),
         "course": "business", "gender": None,
         "messages": [
             "Ажилтнуудыг удирдаж", "Уулзалт зохион байгуулж",
@@ -152,7 +152,7 @@ JOBS: dict = {
     },
     "engineer": {
         "name_mn": "Инженер", "emoji": "⚙️",
-        "salary": (220_000, 500_000),
+        "salary": (22_000, 50_000),
         "course": "engineering", "gender": None,
         "messages": [
             "Систем дизайн хийж", "Тоног төхөөрөмж засварлаж",
@@ -178,7 +178,7 @@ COURSES: dict = {
 
 GENDER_MN    = {"male": "👨 Эрэгтэй",        "female": "👩 Эмэгтэй"}
 SEXUALITY_MN = {
-    "straight": "💑 Гетеросексуал",
+    "straight": "💑 Straight",
     "gay":      "🏳️‍🌈 Геи / Лесбиян",
     "bisexual": "💜 Бисексуал",
 }
@@ -201,8 +201,7 @@ def calc_age(char) -> int:
     Calculate in-game age.
     - New system (birth_time stored): 12 real hours = 1 game year
     - Legacy (birth_date stored):     1 real day    = 1 game year
-    Accepts a character row dict or a birth_date string (legacy).
-    """
+    Accepts a character row dict or a birth_date string (legacy).\n"""
     if isinstance(char, dict):
         bt = char.get("birth_time")
         if bt:
@@ -329,6 +328,21 @@ class RegisterView(discord.ui.View):
         self.sel_gender    = None
         self.sel_sexuality = None
 
+    def _build_embed(self) -> discord.Embed:
+        gender_val    = GENDER_MN.get(self.sel_gender, "—") if self.sel_gender else "❓ Сонгоогүй"
+        sexuality_val = SEXUALITY_MN.get(self.sel_sexuality, "—") if self.sel_sexuality else "❓ Сонгоогүй"
+        embed = discord.Embed(
+            title="🎭 Дүр үүсгэх",
+            description=(
+                "Хүйс болон чиг баримжаагаа сонгоод **Үргэлжлүүлэх** дарна уу.\n"
+                "Дараа нь насаа оруулна. *(5–60)*"
+            ),
+            color=0x5865F2,
+        )
+        embed.add_field(name="⚧ Хүйс",          value=gender_val,    inline=True)
+        embed.add_field(name="❤️ Чиг баримжаа",  value=sexuality_val, inline=True)
+        return embed
+
     @discord.ui.select(
         placeholder="⚧ Хүйсээ сонгоно уу...",
         options=[
@@ -340,13 +354,13 @@ class RegisterView(discord.ui.View):
     async def gender_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         self.sel_gender = select.values[0]
         self.confirm_btn.disabled = not (self.sel_gender and self.sel_sexuality)
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(embed=self._build_embed(), view=self)
 
     @discord.ui.select(
         placeholder="❤️ Чиг баримжаагаа сонгоно уу...",
         options=[
             discord.SelectOption(
-                label="Гетеросексуал", value="straight", emoji="💑",
+                label="Straight", value="straight", emoji="💑",
                 description="Эсрэг хүйсийг татдаг",
             ),
             discord.SelectOption(
@@ -363,7 +377,7 @@ class RegisterView(discord.ui.View):
     async def sexuality_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         self.sel_sexuality = select.values[0]
         self.confirm_btn.disabled = not (self.sel_gender and self.sel_sexuality)
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(embed=self._build_embed(), view=self)
 
     @discord.ui.button(
         label="Үргэлжлүүлэх ➡️",
@@ -512,6 +526,98 @@ class Character(commands.Cog):
             async with aiosqlite.connect(DB_PATH) as db:
                 db.row_factory = aiosqlite.Row
 
+                # 0. Death notifications & inheritance
+                cur0 = await db.execute("SELECT * FROM character_info WHERE death_notified=0")
+                all_chars = await cur0.fetchall()
+                for char in all_chars:
+                    char = dict(char)
+                    age  = calc_age(char)
+                    if age < char.get("death_age", 999):
+                        continue
+                    uid, gid = char["user_id"], char["guild_id"]
+
+                    # Get balance
+                    bal_row = await (await db.execute(
+                        "SELECT balance FROM users WHERE user_id=? AND guild_id=?", (uid, gid)
+                    )).fetchone()
+                    balance = bal_row["balance"] if bal_row else 0
+                    inherit_pool = int(balance * 0.50)
+
+                    # Find family: spouse + adopted children
+                    fam_row = await (await db.execute(
+                        "SELECT spouse_id FROM family WHERE user_id=? AND guild_id=?", (uid, gid)
+                    )).fetchone()
+                    family_ids = []
+                    if fam_row and fam_row["spouse_id"]:
+                        family_ids.append(fam_row["spouse_id"])
+                    adopted = await (await db.execute(
+                        "SELECT user_id FROM family WHERE parent_id=? AND guild_id=?", (uid, gid)
+                    )).fetchall()
+                    family_ids += [r["user_id"] for r in adopted]
+                    family_ids = list(dict.fromkeys(family_ids))
+
+                    # Virtual children count
+                    vc_row = await (await db.execute(
+                        "SELECT COUNT(*) AS cnt FROM virtual_children WHERE (parent1_id=? OR parent2_id=?) AND guild_id=?",
+                        (uid, uid, gid)
+                    )).fetchone()
+                    vc_count = vc_row["cnt"] if vc_row else 0
+
+                    # Distribute 50% inheritance to real family members
+                    if family_ids and inherit_pool > 0:
+                        share = inherit_pool // len(family_ids)
+                        for fid in family_ids:
+                            await db.execute(
+                                "UPDATE users SET balance=MIN(1000000000,balance+?) WHERE user_id=? AND guild_id=?",
+                                (share, fid, gid)
+                            )
+
+                    # Mark notified before sending DMs
+                    await db.execute(
+                        "UPDATE character_info SET death_notified=1 WHERE user_id=? AND guild_id=?",
+                        (uid, gid)
+                    )
+                    await db.commit()
+
+                    # DM the deceased
+                    try:
+                        deceased = await self.bot.fetch_user(uid)
+                        embed_d = discord.Embed(
+                            title="🪶 Таны дүр нас барлаа",
+                            description=(
+                                f"Таны дүр **{char['death_age']} насандаа** нас барлаа.\n"
+                                + (
+                                    f"💰 Нийт хөрөнгийн 50% ({inherit_pool:,} ₮) гэр бүлд үлдлээ.\n"
+                                    if family_ids and inherit_pool > 0 else ""
+                                )
+                                + "`/register` командаар шинэ дүр үүсгэнэ үү."
+                            ),
+                            color=0x555555,
+                        )
+                        await deceased.send(embed=embed_d)
+                    except Exception:
+                        pass
+
+                    # DM family members
+                    if family_ids:
+                        share = (inherit_pool // len(family_ids)) if inherit_pool > 0 else 0
+                        for fid in family_ids:
+                            try:
+                                fmember = await self.bot.fetch_user(fid)
+                                vc_txt = f"\n👶 Виртуал хүүхэд: **{vc_count}**" if vc_count else ""
+                                money_txt = f"\n💰 Өв хөрөнгөөс **{share:,} ₮** таны дансанд орлоо." if share > 0 else ""
+                                embed_f = discord.Embed(
+                                    title="🪶 Гэр бүлийн гишүүн таалал төгсөв",
+                                    description=(
+                                        f"Таны гэр бүлийн нэг нь **{char['death_age']} насандаа** нас барлаа."
+                                        + money_txt + vc_txt
+                                    ),
+                                    color=0x555555,
+                                )
+                                await fmember.send(embed=embed_f)
+                            except Exception:
+                                pass
+
                 # 1. Age milestone notifications
                 cur = await db.execute("SELECT * FROM character_info")
                 chars = await cur.fetchall()
@@ -636,15 +742,8 @@ class Character(commands.Cog):
     # ── /register ─────────────────────────────────────────────
     @app_commands.command(name="register", description="Дүр үүсгэж тоглоомыг эхлүүлэх")
     async def register(self, interaction: discord.Interaction):
-        embed = discord.Embed(
-            title="🎭 Дүр үүсгэх",
-            description=(
-                "Хүйс болон чиг баримжаагаа сонгоод **Үргэлжлүүлэх** дарна уу.\n"
-                "Дараа нь насаа оруулна. *(5–60)*"
-            ),
-            color=0x5865F2,
-        )
-        await interaction.response.send_message(embed=embed, view=RegisterView(), ephemeral=True)
+        view = RegisterView()
+        await interaction.response.send_message(embed=view._build_embed(), view=view, ephemeral=True)
 
     # ── /mychar ───────────────────────────────────────────────
     @app_commands.command(name="mychar", description="Өөрийн дүрийн мэдээлэл харах")
@@ -856,6 +955,7 @@ class Character(commands.Cog):
             ),
             color=discord.Color.green(),
         )
+        embed.set_footer(text="➡️  /work командаар ажлаа хийж цалингаа аваарай!")
         await interaction.response.send_message(embed=embed)
     # ── /courses ──────────────────────────────────────────────
     @app_commands.command(name="courses", description="Боломжит курсуудыг харах")
@@ -955,5 +1055,6 @@ class Character(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
 
-async def setup(bot):
-    await bot.add_cog(Character(bot))
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(CharacterCog(bot))

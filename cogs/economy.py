@@ -11,6 +11,7 @@ from cogs.family import process_child_economics
 from config import (
     WORK_COOLDOWN_MINUTES, DAILY_COOLDOWN_HOURS,
     DAILY_REWARD_MIN, DAILY_REWARD_MAX, WORK_MIN_AGE,
+    BALANCE_CAP,
 )
 
 class Economy(commands.Cog):
@@ -107,8 +108,8 @@ class Economy(commands.Cog):
             child_delta  = await process_child_economics(uid, gid, db)
             total_change = earned + child_delta
             await db.execute(
-                "UPDATE users SET balance=MAX(0,balance+?) WHERE user_id=? AND guild_id=?",
-                (total_change, uid, gid),
+                "UPDATE users SET balance=MIN(?,MAX(0,balance+?)) WHERE user_id=? AND guild_id=?",
+                (BALANCE_CAP, total_change, uid, gid),
             )
             await db.commit()
 
