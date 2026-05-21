@@ -56,6 +56,8 @@ NO_CHAR_REQUIRED = {
     "level_role_add",
     "eruuljuuleh", "prisonlist",
     "jobs", "courses",
+    # Bank (no char needed)
+    "deposit", "withdraw", "bank",
     # Admin commands
     "adminsetage", "adminsetgender", "adminsetsexuality", "adminsetjob",
     "adminrevive", "adminkill", "adminsetbalance", "adminaddbalance",
@@ -115,10 +117,24 @@ class PrisonTree(app_commands.CommandTree):
                 else:
                     # Хугацаа дууссан бол prison цэвэрлэх
                     async with aiosqlite.connect(DB_PATH) as db:
-                        await db.execute(
-                            "UPDATE users SET prison_until=NULL, sogto_level=0 WHERE user_id=? AND guild_id=?",
+                        db.row_factory = aiosqlite.Row
+                        reason_cur = await db.execute(
+                            "SELECT prison_reason FROM users WHERE user_id=? AND guild_id=?",
                             (interaction.user.id, interaction.guild_id)
                         )
+                        reason_row = await reason_cur.fetchone()
+                        reason = reason_row["prison_reason"] if reason_row else None
+                        # Тэнсэн: архиар шоронд орсон бол тэнсэн хэвээр байна
+                        if reason != "alcohol":
+                            await db.execute(
+                                "UPDATE users SET prison_until=NULL, sogto_level=0, tension=0, prison_reason=NULL WHERE user_id=? AND guild_id=?",
+                                (interaction.user.id, interaction.guild_id)
+                            )
+                        else:
+                            await db.execute(
+                                "UPDATE users SET prison_until=NULL, sogto_level=0 WHERE user_id=? AND guild_id=?",
+                                (interaction.user.id, interaction.guild_id)
+                            )
                         await db.commit()
         except Exception:
             pass

@@ -22,18 +22,72 @@ class Stats(commands.Cog):
             row = await cursor.fetchone()
             rank = row[0] + 1
 
+        # ── Мориитой тоглоомын статистик ────────────────────────
+        g_wins   = user["game_wins"]        if "game_wins"        in user.keys() else 0
+        g_losses = user["game_losses"]      if "game_losses"      in user.keys() else 0
+        g_won    = user["game_won_amount"]  if "game_won_amount"  in user.keys() else 0
+        g_lost   = user["game_lost_amount"] if "game_lost_amount" in user.keys() else 0
+        g_wager  = user["game_wagered"]     if "game_wagered"     in user.keys() else 0
+
+        g_played = g_wins + g_losses
+        win_rate = (g_wins / g_played * 100) if g_played > 0 else 0
+        net      = g_won - g_lost
+
+        if g_played == 0:
+            luck = "❓ Тоглоогүй"
+        elif win_rate >= 65:
+            luck = "🍀 Маш азтай"
+        elif win_rate >= 55:
+            luck = "😊 Азтай"
+        elif win_rate >= 45:
+            luck = "😐 Дундаж"
+        elif win_rate >= 35:
+            luck = "😬 Дутуу азтай"
+        else:
+            luck = "💀 Азгүй"
+
+        net_str = f"+{net:,} ₮" if net >= 0 else f"{net:,} ₮"
+
         embed = discord.Embed(
             title=f"📊 {target.display_name}-н статистик",
             color=discord.Color.blurple()
         )
         embed.set_thumbnail(url=target.display_avatar.url)
-        embed.add_field(name="⭐ Түвшин", value=f"**{user['level']}**", inline=True)
-        embed.add_field(name="💰 Үлдэгдэл", value=f"**{user['balance']:,} ₮**", inline=True)
-        embed.add_field(name="🏆 Зэрэглэл", value=f"**#{rank}**", inline=True)
-        embed.add_field(name="💬 Нийт мессеж", value=f"**{user['messages']:,}**", inline=True)
-        embed.add_field(name="✨ XP", value=f"**{user['xp']}**", inline=True)
+        embed.add_field(name="⭐ Түвшин",        value=f"**{user['level']}**",       inline=True)
+        embed.add_field(name="💰 Үлдэгдэл",      value=f"**{user['balance']:,} ₮**", inline=True)
+        embed.add_field(name="🏆 Зэрэглэл",      value=f"**#{rank}**",               inline=True)
+        embed.add_field(name="💬 Нийт мессеж",   value=f"**{user['messages']:,}**",  inline=True)
+        embed.add_field(name="✨ XP",             value=f"**{user['xp']}**",          inline=True)
         joined = target.joined_at.strftime("%Y-%m-%d") if target.joined_at else "Тодорхойгүй"
         embed.add_field(name="📅 Нэгдсэн огноо", value=joined, inline=True)
+
+        # ── Тоглоомын статистик блок ─────────────────────────────
+        embed.add_field(name="​", value="─── 🎲 **Мориитой тоглоом** ───", inline=False)
+        embed.add_field(
+            name="🎯 Азны үнэлгээ",
+            value=f"**{luck}**" + (f"  `{win_rate:.1f}%`" if g_played > 0 else ""),
+            inline=False
+        )
+        embed.add_field(name="✅ Ялалт",               value=f"**{g_wins:,}** удаа",   inline=True)
+        embed.add_field(name="❌ Ялагдал",             value=f"**{g_losses:,}** удаа", inline=True)
+        embed.add_field(name="🎮 Нийт тоглосон",       value=f"**{g_played:,}** удаа", inline=True)
+        embed.add_field(name="💸 Нийт урсгасан",       value=f"**{g_wager:,} ₮**",     inline=True)
+        embed.add_field(name="📈 Нийт олсон",          value=f"**+{g_won:,} ₮**",       inline=True)
+        embed.add_field(name="📉 Нийт алдсан",         value=f"**-{g_lost:,} ₮**",      inline=True)
+        embed.add_field(name="💹 Цэвэр ашиг/алдагдал", value=f"**{net_str}**",          inline=False)
+
+        # ── Санхүү & тэнсэн ─────────────────────────────────────
+        tension   = user["tension"]   if "tension"   in user.keys() else 0
+        bank_bal  = user["bank"]      if "bank"      in user.keys() else 0
+        happiness = user["happiness"] if "happiness" in user.keys() else 10
+
+        t_bar   = "\u26a1" * tension + "\u25ab\ufe0f" * max(0, 6 - tension)
+        h_emoji = "\U0001f60a" if happiness >= 15 else ("\U0001f610" if happiness >= 8 else "\U0001f614")
+        embed.add_field(name="\u200b", value="\u2500\u2500\u2500 \U0001f4b0 **\u0421\u0430\u043d\u0445\u04af\u04af & \u041d\u0438\u0439\u0433\u043c\u0438\u0439\u043d \u0441\u0442\u0430\u0442\u0443\u0441** \u2500\u2500\u2500", inline=False)
+        embed.add_field(name="\U0001f3e6 Bank",          value=f"**{bank_bal:,} \u20ae**",   inline=True)
+        embed.add_field(name=f"{h_emoji} \u0410\u0437 \u0436\u0430\u0440\u0433\u0430\u043b", value=f"**{happiness}/20**", inline=True)
+        embed.add_field(name="\u26a1 \u0422\u044d\u043d\u0441\u044d\u043d",     value=f"**{tension}/6** {t_bar}",  inline=True)
+
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="serverinfo", description="Серверийн статистик харах")

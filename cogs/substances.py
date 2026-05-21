@@ -135,7 +135,7 @@ class Substances(commands.Cog):
 
             async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute(
-                    "UPDATE users SET prison_until=?, prison_count=? WHERE user_id=? AND guild_id=?",
+                    "UPDATE users SET prison_until=?, prison_count=?, prison_reason='alcohol' WHERE user_id=? AND guild_id=?",
                     (release_at.isoformat(), new_count, interaction.user.id, interaction.guild_id)
                 )
                 await db.commit()

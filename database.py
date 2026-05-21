@@ -43,6 +43,20 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN mansuuralt_level INTEGER DEFAULT 0",
             "ALTER TABLE users ADD COLUMN prison_until TEXT DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN prison_count INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN game_wins INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN game_losses INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN game_won_amount INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN game_lost_amount INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN game_wagered INTEGER DEFAULT 0",
+            # Bank & happiness system
+            "ALTER TABLE users ADD COLUMN bank INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN happiness INTEGER DEFAULT 10",
+            "ALTER TABLE users ADD COLUMN happiness_updated TEXT DEFAULT NULL",
+            # Tension / crime system
+            "ALTER TABLE users ADD COLUMN tension INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN rob_cooldown TEXT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN hack_cooldown TEXT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN prison_reason TEXT DEFAULT NULL",
         ]:
             try: await db.execute(col)
             except: pass
@@ -343,7 +357,37 @@ async def init_db():
                 "INSERT OR REPLACE INTO bot_config (key,value) VALUES ('shop_version','2')"
             )
 
+        # ── Fix weapon/armor effect_value (was 0, should be 10) ──────
+        cur_wfix = await db.execute("SELECT value FROM bot_config WHERE key='shop_weapon_fix'")
+        row_wfix = await cur_wfix.fetchone()
+        if not row_wfix:
+            await db.execute("UPDATE shop SET effect_value=10 WHERE item_type='weapon' AND effect_value=0")
+            await db.execute("UPDATE shop SET effect_value=10 WHERE item_type='armor'  AND effect_value=0")
+            await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('shop_weapon_fix','1')")
+
+        # ── Food items (shop_food_v1) ─────────────────────────────────
+        cur_food = await db.execute("SELECT value FROM bot_config WHERE key='shop_food_v1'")
+        row_food = await cur_food.fetchone()
+        if not row_food:
+            food_items = [
+                ("Ус",            "Цэвэр ус — хамгийн энгийн хоол",           100,  "\U0001f4a7", "food", "happiness", 2),
+                ("Ундаа",         "Исгэлэн зөөлөн ундаа",                     200,  "\U0001f964", "food", "happiness", 3),
+                ("Жимсний шүүс",  "Шинэхэн жимсний шүүс",                     350,  "\U0001f34a", "food", "happiness", 4),
+                ("Фаст фуд",      "Хурдан, амттай фаст фуд",                  300,  "\U0001f354", "food", "happiness", 4),
+                ("Хоол",          "Гэрийн дулаан хоол",                       500,  "\U0001f37d️", "food", "happiness", 5),
+                ("Пицца",         "Итальян шинэхэн пицца",                    800,  "\U0001f355", "food", "happiness", 7),
+                ("Бялуу",         "Чихэрлэг тансаг бялуу",                  1_000,  "\U0001f382", "food", "happiness", 8),
+                ("Тансаг хоол",   "5 одтой ресторанны тансаг хоол",          2_500,  "\U0001f371", "food", "happiness", 12),
+            ]
+            await db.executemany(
+                "INSERT INTO shop (name,description,price,emoji,item_type,effect_type,effect_value)"
+                " VALUES (?,?,?,?,?,?,?)",
+                food_items
+            )
+            await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('shop_food_v1','1')")
+
         await db.commit()
+
 
 
 # ── Helper functions ─────────────────────────────────────────────
@@ -366,6 +410,7 @@ async def get_user(user_id: int, guild_id: int) -> dict:
             row = await cur.fetchone()
         return dict(row)
 
+
 async def update_balance(user_id: int, guild_id: int, amount: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
@@ -373,6 +418,7 @@ async def update_balance(user_id: int, guild_id: int, amount: int):
             (amount, user_id, guild_id)
         )
         await db.commit()
+
 
 async def get_family(user_id: int, guild_id: int) -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -392,6 +438,7 @@ async def get_family(user_id: int, guild_id: int) -> dict:
             row = await cur.fetchone()
         return dict(row)
 
+
 async def get_rpg(user_id: int, guild_id: int) -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -404,4 +451,35 @@ async def get_rpg(user_id: int, guild_id: int) -> dict:
                 "INSERT INTO rpg (user_id, guild_id) VALUES (?,?)", (user_id, guild_id)
             )
             await db.commit()
-            cur = await db.execut
+            cur = await db.execute(
+                "SELECT * FROM rpg WHERE user_id=? AND guild_id=?", (user_id, guild_id)
+            )
+            row = await cur.fetchone()
+        return dict(row)
+
+
+async def get_happiness(user_id: int, guild_id: int) -> int:
+    """Get current happiness level with time-based decay (3 per real hour)."""
+    from datetime import datetime
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            "SELECT happiness, happiness_updated FROM users WHERE user_id=? AND guild_id=?",
+            (user_id, guild_id)
+        )
+        row = await cur.fetchone()
+        if not row:
+            return 10
+        happiness         = row["happiness"] if row["happiness"] is not None else 10
+        happiness_updated = row["happiness_updated"]
+        if happiness_updated:
+            last       = datetime.fromisoformat(happiness_updated)
+            hours_pass = (datetime.utcnow() - last).total_seconds() / 3600
+            decay      = int(hours_pass * 3)
+            happiness  = max(0, happiness - decay)
+        await db.execute(
+            "UPDATE users SET happiness=?, happiness_updated=? WHERE user_id=? AND guild_id=?",
+            (happiness, datetime.utcnow().isoformat(), user_id, guild_id)
+        )
+        await db.commit()
+        return happiness

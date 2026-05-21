@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import aiosqlite
-from database import DB_PATH, get_user, update_balance
+from database import DB_PATH, get_user, update_balance, get_happiness
 from datetime import datetime, timedelta
 import random
 import json
@@ -23,12 +23,15 @@ class Economy(commands.Cog):
     async def balance(self, interaction: discord.Interaction, member: discord.Member = None):
         target = member or interaction.user
         user = await get_user(target.id, interaction.guild_id)
+        bank_bal = user.get("bank", 0) or 0
         embed = discord.Embed(
-            title=f"💰 {target.display_name}-н данс",
+            title=f"\U0001f4b0 {target.display_name}-н данс",
             color=discord.Color.gold()
         )
-        embed.add_field(name="Үлдэгдэл", value=f"**{user['balance']:,} ₮**", inline=False)
         embed.set_thumbnail(url=target.display_avatar.url)
+        embed.add_field(name="\U0001f4b5 Pocket", value=f"**{user['balance']:,} \u20ae**", inline=True)
+        embed.add_field(name="\U0001f3e6 Bank",   value=f"**{bank_bal:,} \u20ae**",       inline=True)
+        embed.add_field(name="\U0001f4b0 \u041d\u0438\u0439\u0442", value=f"**{user['balance']+bank_bal:,} \u20ae**", inline=True)
         await interaction.response.send_message(embed=embed)
 
     # ── Ажил хийж мөнгө олох ──────────────────────────────────
@@ -99,9 +102,19 @@ class Economy(commands.Cog):
                 )
                 return
 
+        # 6. Happiness multiplier
+        from database import get_happiness as _gh
+        happiness = await _gh(uid, gid)
+        if happiness <= 0:
+            h_mult = 0.3
+        elif happiness < 10:
+            h_mult = 0.5 + happiness * 0.05
+        else:
+            h_mult = 1.0 + (happiness - 10) * 0.05
+
         # 6. Цалин тооцоолох + хүүхдийн эдийн засаг
         sal_min, sal_max = job["salary"]
-        earned   = random.randint(sal_min, sal_max)
+        earned   = int(random.randint(sal_min, sal_max) * h_mult)
         work_msg = random.choice(job["messages"])
 
         async with aiosqlite.connect(DB_PATH) as db:
@@ -120,6 +133,8 @@ class Economy(commands.Cog):
         )
         embed.add_field(name="💼 Мэргэжил", value=job["name_mn"], inline=True)
         embed.add_field(name="🎂 Нас",       value=f"{age} нас",   inline=True)
+        h_emoji = "😊" if happiness >= 15 else ("😐" if happiness >= 8 else "😔")
+        embed.add_field(name=f"{h_emoji} Аз жаргал", value=f"**{happiness}/20** ({h_mult:.0%})", inline=True)
         if child_delta != 0:
             if child_delta < 0:
                 embed.add_field(name="👶 Хүүхдийн зардал", value=f"**-{abs(child_delta):,} ₮**", inline=True)
@@ -218,12 +233,14 @@ class Economy(commands.Cog):
         "vehicle": "vehicle", "машин": "vehicle",   "хөдлөх": "vehicle",
         "realestate": "realestate", "байшин": "realestate",  "house": "realestate",
         "other": "other",     "бусад": "other",     "тоглоом": "other",
+        "food": "food",       "хоол": "food",       "идэх": "food",
     }
     CATEGORY_LABELS = {
         "ring": "💍 Бөгж", "alcohol": "🍺 Архи", "cigarette": "🚬 Тамхи",
         "vape": "💨 Вэйп", "accessory": "⌚ Гоёл чимэглэл", "gem": "💎 Үнэт чулуу",
         "vehicle": "🚗 Хөдлөх хөрөнгө", "realestate": "🏠 Үл хөдлөх хөрөнгө",
         "other": "⚔️ Тоглоом/Бусад",
+        "food": "🍽️ Хоол/Идэш",
     }
 
     # ── Дэлгүүр харах (категориор) ────────────────────────────
@@ -470,38 +487,416 @@ class Economy(commands.Cog):
             )
         await interaction.response.send_message(embed=embed)
 
-    # ── Мөнгө шилжүүлэх ──────────────────────────────────────
-    @app_commands.command(name="transfer", description="Өөр хүнд мөнгө шилжүүлэх")
-    async def transfer(self, interaction: discord.Interaction, member: discord.Member, amount: int):
+    # ══════════════════════════════════════════════════════════
+    #  BANK COMMANDS
+    # ══════════════════════════════════════════════════════════
+
+    @app_commands.command(name="deposit", description="Мөнгөө банкинд хадгалах (pocket → bank)")
+    async def deposit(self, interaction: discord.Interaction, amount: int):
         if amount <= 0:
-            await interaction.response.send_message("❌ Дүн 0-ээс их байх ёстой!", ephemeral=True)
+            await interaction.response.send_message("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
             return
-        if member.id == interaction.user.id:
-            await interaction.response.send_message("❌ Өөртөө мөнгө шилжүүлэх боломжгүй!", ephemeral=True)
-            return
-        user = await get_user(interaction.user.id, interaction.guild_id)
+        uid, gid = interaction.user.id, interaction.guild_id
+        user = await get_user(uid, gid)
         if user["balance"] < amount:
             await interaction.response.send_message(
-                f"❌ Мөнгө хүрэлцэхгүй! Таных: **{user['balance']:,} ₮**", ephemeral=True
+                f"❌ Pocket-д хүрэлцэхгүй! Pocket: **{user['balance']:,} ₮**", ephemeral=True
             )
             return
-        await update_balance(interaction.user.id, interaction.guild_id, -amount)
-        await update_balance(member.id, interaction.guild_id, amount)
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE users SET balance=balance-?, bank=bank+? WHERE user_id=? AND guild_id=?",
+                (amount, amount, uid, gid)
+            )
+            await db.commit()
         embed = discord.Embed(
-            title="💸 Шилжүүлэг амжилттай!",
-            description=f"**{amount:,} ₮**-г {member.mention}-д шилжүүллээ!",
-            color=discord.Color.green()
+            title="\U0001f3e6 Банкинд хадгаллаа!",
+            description=f"**{amount:,} ₮** банкинд хийгдлээ.",
+            color=discord.Color.blue()
         )
+        embed.add_field(name="\U0001f4b5 Pocket", value=f"**{user['balance']-amount:,} ₮**", inline=True)
+        embed.add_field(name="\U0001f3e6 Bank",   value=f"**{(user.get('bank',0)+amount):,} ₮**", inline=True)
         await interaction.response.send_message(embed=embed)
 
-    # ── Admin: мөнгө өгөх ─────────────────────────────────────
-    @app_commands.command(name="givemoney", description="Хэрэглэгчид мөнгө өгөх [Admin]")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def givemoney(self, interaction: discord.Interaction, member: discord.Member, amount: int):
-        await update_balance(member.id, interaction.guild_id, amount)
-        await interaction.response.send_message(
-            f"✅ {member.mention}-д **{amount:,} ₮** өгөгдлөө!", ephemeral=True
+    @app_commands.command(name="withdraw", description="Банкнаас мөнгөө гаргах (bank → pocket)")
+    async def withdraw(self, interaction: discord.Interaction, amount: int):
+        if amount <= 0:
+            await interaction.response.send_message("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
+            return
+        uid, gid = interaction.user.id, interaction.guild_id
+        user = await get_user(uid, gid)
+        bank_bal = user.get("bank", 0) or 0
+        if bank_bal < amount:
+            await interaction.response.send_message(
+                f"❌ Банкинд хүрэлцэхгүй! Bank: **{bank_bal:,} ₮**", ephemeral=True
+            )
+            return
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE users SET balance=MIN(1000000000,balance+?), bank=bank-? WHERE user_id=? AND guild_id=?",
+                (amount, amount, uid, gid)
+            )
+            await db.commit()
+        embed = discord.Embed(
+            title="\U0001f4b8 Банкнаас гаргалаа!",
+            description=f"**{amount:,} ₮** pocket-д нэмэгдлээ.",
+            color=discord.Color.green()
         )
+        embed.add_field(name="\U0001f4b5 Pocket", value=f"**{user['balance']+amount:,} ₮**", inline=True)
+        embed.add_field(name="\U0001f3e6 Bank",   value=f"**{bank_bal-amount:,} ₮**", inline=True)
+        await interaction.response.send_message(embed=embed)
 
-async def setup(bot):
-    await bot.add_cog(Economy(bot))
+    @app_commands.command(name="bank", description="Банкны данс болон нийт хөрөнгийг харах")
+    async def bank_info(self, interaction: discord.Interaction, member: discord.Member = None):
+        target = member or interaction.user
+        uid, gid = target.id, interaction.guild_id
+        user = await get_user(uid, gid)
+        pocket = user["balance"]
+        bank   = user.get("bank", 0) or 0
+
+        # Inventory value
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("""
+                SELECT SUM(s.price * i.quantity) as total_val
+                FROM inventory i JOIN shop s ON i.item_id=s.item_id
+                WHERE i.user_id=? AND i.guild_id=?
+            """, (uid, gid))
+            row = await cur.fetchone()
+        inv_val = row["total_val"] or 0
+
+        total = pocket + bank + inv_val
+        embed = discord.Embed(
+            title=f"\U0001f3e6 {target.display_name}-н данс",
+            color=discord.Color.gold()
+        )
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.add_field(name="\U0001f4b5 Pocket",     value=f"**{pocket:,} ₮**",  inline=True)
+        embed.add_field(name="\U0001f3e6 Bank",       value=f"**{bank:,} ₮**",    inline=True)
+        embed.add_field(name="\U0001f392 Inventory",  value=f"**{inv_val:,} ₮**", inline=True)
+        embed.add_field(name="\U0001f4b0 Нийт хөрөнгө", value=f"**{total:,} ₮**", inline=False)
+        embed.set_footer(text="/deposit хийж банкинд хадгал  •  /withdraw гаргах")
+        await interaction.response.send_message(embed=embed)
+
+    # ══════════════════════════════════════════════════════════
+    #  /eat  — consume food item, raise happiness
+    # ══════════════════════════════════════════════════════════
+    @app_commands.command(name="eat", description="Хоол идэж аз жаргалын түвшнийг нэмэгдүүлэх")
+    @app_commands.describe(item_id="Хоолны барааны ID (/shop food-оос харна уу)")
+    async def eat(self, interaction: discord.Interaction, item_id: int):
+        uid, gid = interaction.user.id, interaction.guild_id
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("""
+                SELECT i.item_id, i.quantity, s.name, s.emoji, s.effect_value
+                FROM inventory i JOIN shop s ON i.item_id=s.item_id
+                WHERE i.user_id=? AND i.guild_id=? AND s.item_type='food' AND i.item_id=?
+            """, (uid, gid, item_id))
+            food = await cur.fetchone()
+
+        if not food:
+            await interaction.response.send_message(
+                "❌ Inventory-д тийм хоол байхгүй! `/shop food` дээрээс аваад ирнэ үү.", ephemeral=True
+            )
+            return
+
+        happiness = await get_happiness(uid, gid)
+        gain      = food["effect_value"]
+        new_hap   = happiness + gain
+
+        if new_hap > 20:
+            # Overeating — penalty
+            user    = await get_user(uid, gid)
+            penalty = int(user["balance"] * 0.10)
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "UPDATE users SET balance=MAX(0,balance-?), happiness=20, happiness_updated=? WHERE user_id=? AND guild_id=?",
+                    (penalty, datetime.utcnow().isoformat(), uid, gid)
+                )
+                # Still consume item
+                if food["quantity"] > 1:
+                    await db.execute("UPDATE inventory SET quantity=quantity-1 WHERE item_id=? AND user_id=? AND guild_id=?", (item_id,uid,gid))
+                else:
+                    await db.execute("DELETE FROM inventory WHERE item_id=? AND user_id=? AND guild_id=?", (item_id,uid,gid))
+                await db.commit()
+            embed = discord.Embed(
+                title="\U0001f974 Хэтрүүлэн идсэний улмаас эрүүл мэндэд хохирол учирлаа!",
+                description=(
+                    f"{food['emoji']} **{food['name']}** идэхэд аз жаргал 20-аас хэтэрлээ.\n"
+                    f"Эрүүл мэндийн суутгал: **-{penalty:,} ₮** (10%)\n"
+                    f"Аз жаргал: **20/20** (дээд хэмжээнд байна)"
+                ),
+                color=discord.Color.orange()
+            )
+            await interaction.response.send_message(embed=embed)
+            return
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE users SET happiness=?, happiness_updated=? WHERE user_id=? AND guild_id=?",
+                (new_hap, datetime.utcnow().isoformat(), uid, gid)
+            )
+            if food["quantity"] > 1:
+                await db.execute("UPDATE inventory SET quantity=quantity-1 WHERE item_id=? AND user_id=? AND guild_id=?", (item_id,uid,gid))
+            else:
+                await db.execute("DELETE FROM inventory WHERE item_id=? AND user_id=? AND guild_id=?", (item_id,uid,gid))
+            await db.commit()
+
+        h_bar = "♥" * new_hap + "♡" * (20 - new_hap)
+        embed = discord.Embed(
+            title=f"{food['emoji']} {food['name']} идлээ!",
+            description=f"Аз жаргал **+{gain}** нэмэгдлээ!",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="\U0001f60a Аз жаргал", value=f"**{new_hap}/20**\n{h_bar}", inline=False)
+        await interaction.response.send_message(embed=embed)
+
+    # ══════════════════════════════════════════════════════════
+    #  /rob  — steal from pocket
+    # ══════════════════════════════════════════════════════════
+    @app_commands.command(name="rob", description="Бусдын pocket-аас хулгай хийх (1 цаг cooldown)")
+    @app_commands.describe(member="Хулгайлах хүн")
+    async def rob(self, interaction: discord.Interaction, member: discord.Member):
+        uid, gid = interaction.user.id, interaction.guild_id
+        if member.id == uid:
+            await interaction.response.send_message("❌ Өөрөөсөө хулгай хийх боломжгүй!", ephemeral=True)
+            return
+        if member.bot:
+            await interaction.response.send_message("❌ Bot-оос хулгай хийх боломжгүй!", ephemeral=True)
+            return
+
+        now = datetime.utcnow()
+        robber = await get_user(uid, gid)
+
+        # Cooldown check
+        if robber.get("rob_cooldown"):
+            last_rob  = datetime.fromisoformat(robber["rob_cooldown"])
+            remaining = timedelta(hours=1) - (now - last_rob)
+            if remaining.total_seconds() > 0:
+                mins = int(remaining.total_seconds() // 60)
+                secs = int(remaining.total_seconds() % 60)
+                await interaction.response.send_message(
+                    f"⏳ Rob cooldown: **{mins}м {secs}с** хүлээнэ үү!", ephemeral=True
+                )
+                return
+
+        victim = await get_user(member.id, gid)
+        v_pocket = victim["balance"]
+
+        if v_pocket <= 0:
+            await interaction.response.send_message(
+                f"\U0001f45b {member.display_name}-н pocket хоосон байна. Өөр хүнийг сонгоно уу!",
+                ephemeral=True
+            )
+            return
+
+        # Apply cooldown now (pocket had money)
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE users SET rob_cooldown=? WHERE user_id=? AND guild_id=?",
+                (now.isoformat(), uid, gid)
+            )
+            await db.commit()
+
+        # 45% success chance
+        success = random.random() < 0.45
+
+        if success:
+            # Tiered steal %
+            if v_pocket <= 30_000:
+                pct = random.uniform(0.08, 0.14)
+            elif v_pocket <= 60_000:
+                pct = random.uniform(0.11, 0.15)
+            elif v_pocket <= 100_000:
+                pct = random.uniform(0.13, 0.17)
+            elif v_pocket <= 200_000:
+                pct = random.uniform(0.15, 0.20)
+            else:
+                stolen = random.randint(30_000, 50_000)
+                pct    = None
+
+            if pct is not None:
+                stolen = int(v_pocket * pct)
+
+            await update_balance(member.id, gid, -stolen)
+            await update_balance(uid, gid, stolen)
+            embed = discord.Embed(
+                title="\U0001f977 Хулгай амжилттай!",
+                description=(
+                    f"{member.display_name}-н pocket-аас **{stolen:,} ₮** авлаа!\n"
+                    f"└ Тэдний pocket: **{v_pocket-stolen:,} ₮** болж буурлаа."
+                ),
+                color=discord.Color.green()
+            )
+            await interaction.response.send_message(embed=embed)
+
+        else:
+            # Fail — fine + tension
+            fine_pct   = random.uniform(0.10, 0.20)
+            fine       = int(robber["balance"] * fine_pct)
+            old_tension = robber.get("tension", 0) or 0
+            new_tension = old_tension + 3
+
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "UPDATE users SET balance=MAX(0,balance-?), tension=? WHERE user_id=? AND guild_id=?",
+                    (fine, new_tension, uid, gid)
+                )
+                await db.commit()
+
+            if new_tension >= 6:
+                # Prison 30 minutes
+                release = now + timedelta(minutes=30)
+                async with aiosqlite.connect(DB_PATH) as db:
+                    await db.execute(
+                        "UPDATE users SET prison_until=?, prison_reason='rob' WHERE user_id=? AND guild_id=?",
+                        (release.isoformat(), uid, gid)
+                    )
+                    await db.commit()
+                embed = discord.Embed(
+                    title="\U0001f6a8 Цагдаад баригдлаа! Шоронд орлоо!",
+                    description=(
+                        f"Хулгай амжилтгүй болж цагдаад баригдлаа.\n"
+                        f"Торгууль: **-{fine:,} ₮**\n"
+                        f"⚡ Тэнсэн: **{new_tension}/6** → Шоронд орлоо!\n"
+                        f"\U0001f510 Суллагдах: <t:{int(release.timestamp())}:R>"
+                    ),
+                    color=discord.Color.red()
+                )
+            else:
+                embed = discord.Embed(
+                    title="⚠️ Цагдаагийн анхааруулга!",
+                    description=(
+                        f"Хулгай амжилтгүй болж цагдаа анхааруулга өгөв.\n"
+                        f"Торгууль: **-{fine:,} ₮**\n"
+                        f"⚡ Тэнсэн: **{new_tension}/6**  ({'Дараагийн удаа шоронд орно!' if new_tension >= 3 else 'Болгоомжтой байгаарай!'})"
+                    ),
+                    color=discord.Color.orange()
+                )
+            await interaction.response.send_message(embed=embed)
+
+    # ══════════════════════════════════════════════════════════
+    #  /hack  — steal from bank (programmer only, 35% success)
+    # ══════════════════════════════════════════════════════════
+    @app_commands.command(name="hack", description="Банкинд халдах — зөвхөн програмист ашиглана (2 цаг cooldown)")
+    @app_commands.describe(member="Хак хийх хүн")
+    async def hack(self, interaction: discord.Interaction, member: discord.Member):
+        uid, gid = interaction.user.id, interaction.guild_id
+        if member.id == uid:
+            await interaction.response.send_message("❌ Өөрийгөө хак хийх боломжгүй!", ephemeral=True)
+            return
+        if member.bot:
+            await interaction.response.send_message("❌ Bot-ыг хак хийх боломжгүй!", ephemeral=True)
+            return
+
+        # Check programmer job
+        from cogs.character import get_char
+        char = await get_char(uid, gid)
+        if not char or char.get("job_id") != "programmer":
+            await interaction.response.send_message(
+                "\U0001f4bb Хак команд зөвхөн **Програмист** мэргэжилтэй хүн ашиглах боломжтой!\n"
+                "`/setjob` болон `/courses` командаар програмчлалын курс аваад програмист болно уу.",
+                ephemeral=True
+            )
+            return
+
+        now    = datetime.utcnow()
+        hacker = await get_user(uid, gid)
+
+        # Cooldown check — 2 hours
+        if hacker.get("hack_cooldown"):
+            last_hack = datetime.fromisoformat(hacker["hack_cooldown"])
+            remaining = timedelta(hours=2) - (now - last_hack)
+            if remaining.total_seconds() > 0:
+                mins = int(remaining.total_seconds() // 60)
+                secs = int(remaining.total_seconds() % 60)
+                await interaction.response.send_message(
+                    f"⏳ Hack cooldown: **{mins}м {secs}с** хүлээнэ үү!", ephemeral=True
+                )
+                return
+
+        victim = await get_user(member.id, gid)
+        v_bank = victim.get("bank", 0) or 0
+
+        if v_bank <= 0:
+            # Can immediately try another target
+            await interaction.response.send_message(
+                f"\U0001f4ca {member.display_name}-н банкны данс хоосон байна. Өөр хүнийг сонгоно уу!",
+                ephemeral=True
+            )
+            return
+
+        # Apply cooldown
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE users SET hack_cooldown=? WHERE user_id=? AND guild_id=?",
+                (now.isoformat(), uid, gid)
+            )
+            await db.commit()
+
+        # 35% success
+        success = random.random() < 0.35
+
+        if success:
+            pct    = random.uniform(0.20, 0.30)
+            stolen = min(int(v_bank * pct), 200_000)
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "UPDATE users SET bank=MAX(0,bank-?) WHERE user_id=? AND guild_id=?",
+                    (stolen, member.id, gid)
+                )
+                await db.execute(
+                    "UPDATE users SET balance=MIN(1000000000,balance+?) WHERE user_id=? AND guild_id=?",
+                    (stolen, uid, gid)
+                )
+                await db.commit()
+            embed = discord.Embed(
+                title="\U0001f5a5️ Хак амжилттай!",
+                description=(
+                    f"{member.display_name}-н банкнаас **{stolen:,} ₮** авлаа!\n"
+                    f"└ Тэдний банк: **{v_bank-stolen:,} ₮** болж буурлаа."
+                ),
+                color=discord.Color.green()
+            )
+            await interaction.response.send_message(embed=embed)
+
+        else:
+            old_tension = hacker.get("tension", 0) or 0
+            new_tension = old_tension + 2
+
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "UPDATE users SET tension=? WHERE user_id=? AND guild_id=?",
+                    (new_tension, uid, gid)
+                )
+                await db.commit()
+
+            if new_tension >= 6:
+                release = now + timedelta(minutes=45)
+                async with aiosqlite.connect(DB_PATH) as db:
+                    await db.execute(
+                        "UPDATE users SET prison_until=?, prison_reason='hack' WHERE user_id=? AND guild_id=?",
+                        (release.isoformat(), uid, gid)
+                    )
+                    await db.commit()
+                embed = discord.Embed(
+                    title="\U0001f6a8 FBI баривчиллаа! Шоронд орлоо!",
+                    description=(
+                        f"Хак амжилтгүй болж FBI баривчиллаа.\n"
+                        f"⚡ Тэнсэн: **{new_tension}/6** → Шоронд орлоо! (45 мин)\n"
+                        f"\U0001f510 Суллагдах: <t:{int(release.timestamp())}:R>"
+                    ),
+                    color=discord.Color.red()
+                )
+            else:
+                embed = discord.Embed(
+                    title="⚠️ Hack-ийн оролдлого илэрлээ!",
+                    description=(
+                        f"Хак амжилтгүй болж FBI анхааруулга өгөв.\n"
+                        f"⚡ Тэнсэн: **{new_tension}/6**  ({'Дараагийн удаа шоронд орно!' if new_tension >= 4 else 'Болгоомжтой байгаарай!'})"
+                    ),
+                    color=discord.Color.orange()
+                )
+            await interaction.response.send_message(embed=embed)
+
+
