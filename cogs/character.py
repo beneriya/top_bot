@@ -804,45 +804,48 @@ class Character(commands.Cog):
     # ── /jobs ─────────────────────────────────────────────────
     @app_commands.command(name="jobs", description="Бүх ажлын жагсаалт болон шаардлагыг харах")
     async def jobs(self, interaction: discord.Interaction):
-        char      = await get_char(interaction.user.id, interaction.guild_id)
-        completed = await get_completed_courses(interaction.user.id, interaction.guild_id) if char else set()
-        age       = calc_age(dict(char)) if char else 0
+        await interaction.response.defer()
+        try:
+            char      = await get_char(interaction.user.id, interaction.guild_id)
+            completed = await get_completed_courses(interaction.user.id, interaction.guild_id) if char else set()
 
-        free_male   = []
-        free_female = []
-        course_jobs = []
+            free_male   = []
+            free_female = []
+            course_jobs = []
 
-        for jid, jdata in JOBS.items():
-            sal_min, sal_max = jdata["salary"]
-            line = (
-                f"{jdata['emoji']} **{jdata['name_mn']}**\n"
-                f"   💰 {sal_min:,} – {sal_max:,} ₮"
+            for jid, jdata in JOBS.items():
+                sal_min, sal_max = jdata["salary"]
+                line = (
+                    f"{jdata['emoji']} **{jdata['name_mn']}**\n"
+                    f"   💰 {sal_min:,} – {sal_max:,} ₮"
+                )
+                if jdata["course"]:
+                    cd     = COURSES[jdata["course"]]
+                    owned  = jdata["course"] in completed
+                    status = "✅ Суралцсан" if owned else f"🔒 {cd['name_mn']} ({cd['cost']:,} ₮)"
+                    course_jobs.append(f"{line}\n   {status}")
+                elif jdata["gender"] == "male":
+                    free_male.append(line)
+                else:
+                    free_female.append(line)
+
+            embed = discord.Embed(
+                title="💼 Ажлын жагсаалт",
+                description="Курс шаардлагатай ажлыг суралцсаны дараа `/setjob` -оор сонгоно.",
+                color=0x5865F2,
             )
-            if jdata["course"]:
-                cd     = COURSES[jdata["course"]]
-                owned  = jdata["course"] in completed
-                status = "✅ Суралцсан" if owned else f"🔒 {cd['name_mn']} ({cd['cost']:,} ₮)"
-                course_jobs.append(f"{line}\n   {status}")
-            elif jdata["gender"] == "male":
-                free_male.append(line)
-            else:
-                free_female.append(line)
+            if free_male:
+                embed.add_field(name="👨 Эрэгтэй (шаардлагагүй)",  value="\n\n".join(free_male),   inline=False)
+            if free_female:
+                embed.add_field(name="👩 Эмэгтэй (шаардлагагүй)", value="\n\n".join(free_female), inline=False)
+            if course_jobs:
+                embed.add_field(name="🎓 Мэргэжлийн ажлууд",      value="\n\n".join(course_jobs), inline=False)
 
-        embed = discord.Embed(
-            title="💼 Ажлын жагсаалт",
-            description="Курс шаардлагатай ажлыг суралцсаны дараа `/setjob` -оор сонгоно.",
-            color=0x5865F2,
-        )
-        if free_male:
-            embed.add_field(name="👨 Эрэгтэй (шаардлагагүй)",  value="\n\n".join(free_male),   inline=False)
-        if free_female:
-            embed.add_field(name="👩 Эмэгтэй (шаардлагагүй)", value="\n\n".join(free_female), inline=False)
-        if course_jobs:
-            embed.add_field(name="🎓 Мэргэжлийн ажлууд",      value="\n\n".join(course_jobs), inline=False)
-
-        if not char:
-            embed.set_footer(text="⚠️  /register командаар дүр үүсгэснийхээ дараа ажил сонгоно уу.")
-        await interaction.response.send_message(embed=embed)
+            if not char:
+                embed.set_footer(text="⚠️  /register командаар дүр үүсгэснийхээ дараа ажил сонгоно уу.")
+            await interaction.followup.send(embed=embed)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Алдаа гарлаа: `{e}`", ephemeral=True)
 
     # ── /setjob ───────────────────────────────────────────────
     @app_commands.command(name="setjob", description="Ажлаа сонгох")
@@ -1053,7 +1056,6 @@ class Character(commands.Cog):
         )
         embed.add_field(name="💸 Зарцуулалт", value=f"{cdata['cost']:,} ₮", inline=True)
         await interaction.response.send_message(embed=embed)
-
 
 
 async def setup(bot: commands.Bot):
