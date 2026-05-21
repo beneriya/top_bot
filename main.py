@@ -55,6 +55,7 @@ NO_CHAR_REQUIRED = {
     "givemoney", "releaseprison", "giverole", "removerole",
     "level_role_add",
     "eruuljuuleh", "prisonlist",
+    "jobs", "courses",
     # Admin commands
     "adminsetage", "adminsetgender", "adminsetsexuality", "adminsetjob",
     "adminrevive", "adminkill", "adminsetbalance", "adminaddbalance",
