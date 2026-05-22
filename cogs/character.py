@@ -282,8 +282,8 @@ class AgeModal(discord.ui.Modal, title="🎂 Насаа оруулна уу"):
             await interaction.response.send_message("❌ Нас 5–60 байх ёстой!", ephemeral=True)
             return
 
-        # birth_time: now - (age * 12 hours)  →  12h = 1 game year
-        birth_time = (datetime.utcnow() - timedelta(hours=age * 12)).isoformat()
+        # birth_time: now - (age * 6 hours)  →  6h = 1 game year
+        birth_time = (datetime.utcnow() - timedelta(hours=age * 6)).isoformat()
         death_age  = (
             random.randint(MALE_DEATH_MIN, MALE_DEATH_MAX) if self.char_gender == "male"
             else random.randint(FEMALE_DEATH_MIN, FEMALE_DEATH_MAX)

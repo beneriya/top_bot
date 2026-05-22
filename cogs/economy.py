@@ -24,14 +24,23 @@ class Economy(commands.Cog):
         target = member or interaction.user
         user = await get_user(target.id, interaction.guild_id)
         bank_bal = user.get("bank", 0) or 0
+        total = user['balance'] + bank_bal
+        def _bar(a, b, length=10):
+            if a + b == 0: return "░" * length + "░" * length
+            fa = round(length * a / (a + b))
+            fb = length - fa
+            return "💵" * fa + "🏦" * fb
+        split = _bar(user['balance'], bank_bal)
         embed = discord.Embed(
-            title=f"\U0001f4b0 {target.display_name}-н данс",
-            color=discord.Color.gold()
+            title=f"💳  {target.display_name}",
+            description=f"`{split}`",
+            color=0xF1C40F
         )
         embed.set_thumbnail(url=target.display_avatar.url)
-        embed.add_field(name="\U0001f4b5 Pocket", value=f"**{user['balance']:,} \u20ae**", inline=True)
-        embed.add_field(name="\U0001f3e6 Bank",   value=f"**{bank_bal:,} \u20ae**",       inline=True)
-        embed.add_field(name="\U0001f4b0 \u041d\u0438\u0439\u0442", value=f"**{user['balance']+bank_bal:,} \u20ae**", inline=True)
+        embed.add_field(name="💵 Pocket",  value=f"**{user['balance']:,} ₮**",    inline=True)
+        embed.add_field(name="🏦 Bank",    value=f"**{bank_bal:,} ₮**",           inline=True)
+        embed.add_field(name="💎 Нийт",    value=f"**{total:,} ₮**",              inline=True)
+        embed.set_footer(text=f"TOP Bot  •  /balance")
         await interaction.response.send_message(embed=embed)
 
     # ── Ажил хийж мөнгө олох ──────────────────────────────────
@@ -126,20 +135,31 @@ class Economy(commands.Cog):
             )
             await db.commit()
 
-        embed = discord.Embed(
-            title=f"{job['emoji']} Ажил хийлээ!",
-            description=f"**{work_msg}** ажлаа хийгээд **{earned:,} ₮** оллоо!",
-            color=discord.Color.green(),
-        )
-        embed.add_field(name="💼 Мэргэжил", value=job["name_mn"], inline=True)
-        embed.add_field(name="🎂 Нас",       value=f"{age} нас",   inline=True)
         h_emoji = "😊" if happiness >= 15 else ("😐" if happiness >= 8 else "😔")
-        embed.add_field(name=f"{h_emoji} Аз жаргал", value=f"**{happiness}/20** ({h_mult:.0%})", inline=True)
+        h_filled = round(10 * happiness / 20)
+        h_bar = "█" * h_filled + "░" * (10 - h_filled)
+        embed = discord.Embed(
+            title=f"{job['emoji']}  Ажил хийлээ!",
+            description=f'*"{work_msg}"*',
+            color=0x57F287
+        )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.add_field(name="💰 Олсон",      value=f"**+{earned:,} ₮**",   inline=True)
+        embed.add_field(name="💼 Мэргэжил",   value=f"**{job['name_mn']}**", inline=True)
+        embed.add_field(name="🎂 Нас",         value=f"**{age} нас**",        inline=True)
+        embed.add_field(
+            name=f"{h_emoji} Аз жаргал",
+            value=f"`{h_bar}` **{happiness}/20**  ({h_mult:.0%})",
+            inline=False
+        )
         if child_delta != 0:
-            if child_delta < 0:
-                embed.add_field(name="👶 Хүүхдийн зардал", value=f"**-{abs(child_delta):,} ₮**", inline=True)
-            else:
-                embed.add_field(name="👶 Хүүхдийн орлого", value=f"**+{child_delta:,} ₮**", inline=True)
+            sign = "-" if child_delta < 0 else "+"
+            embed.add_field(
+                name="👶 Хүүхдийн " + ("зардал" if child_delta < 0 else "орлого"),
+                value=f"**{sign}{abs(child_delta):,} ₮**",
+                inline=True
+            )
+        embed.set_footer(text=f"TOP Bot  •  /work  •  30 минут тутамд")
         await interaction.response.send_message(embed=embed)
 
     # ── Өдөр тутмын урамшуулал ────────────────────────────────
@@ -169,10 +189,12 @@ class Economy(commands.Cog):
             await db.commit()
 
         embed = discord.Embed(
-            title="🎁 Өдөр тутмын урамшуулал!",
-            description=f"**{reward:,} ₮** авлаа! Маргааш дахиад ирнэ үү!",
-            color=discord.Color.green()
+            title="🎁  Өдөр тутмын урамшуулал!",
+            description=f"**+{reward:,} ₮** авлаа! 🌟\nМаргааш дахиад ирнэ үү.",
+            color=0xFEE75C
         )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_footer(text="TOP Bot  •  /daily  •  24 цаг тутамд")
         await interaction.response.send_message(embed=embed)
 
     # ── Мөнгө шилжүүлэх ───────────────────────────────────────
@@ -485,17 +507,28 @@ class Economy(commands.Cog):
             )
             rows = await cursor.fetchall()
 
-        embed  = discord.Embed(title="🏆 Баянчуудын TOP 10", color=discord.Color.gold())
-        medals = ["🥇", "🥈", "🥉"]
+        if not rows:
+            await interaction.response.send_message("⚠️ Мэдээлэл байхгүй байна.", ephemeral=True)
+            return
+        top_bal = rows[0]["balance"] or 1
+        medals  = ["🥇", "🥈", "🥉"]
+        def rbar(bal, mx, length=8):
+            filled = round(length * bal / mx) if mx else 0
+            return "█" * filled + "░" * (length - filled)
+        lines = []
         for i, row in enumerate(rows):
-            member = interaction.guild.get_member(row["user_id"])
-            name   = member.display_name if member else f"ID:{row['user_id']}"
-            medal  = medals[i] if i < 3 else f"**{i+1}.**"
-            embed.add_field(
-                name=f"{medal} {name}",
-                value=f"**{row['balance']:,} ₮**",
-                inline=False
-            )
+            m   = interaction.guild.get_member(row["user_id"])
+            nm  = (m.display_name if m else f"User#{row['user_id']}")[:16]
+            med = medals[i] if i < 3 else f"`#{i+1:>2}`"
+            bar = rbar(row["balance"], top_bal)
+            pct = int(row["balance"] / top_bal * 100)
+            lines.append(f"{med}  `{bar}` **{row['balance']:,} ₮**  •  {nm}")
+        embed = discord.Embed(
+            title="🏆  Баянчуудын TOP 10",
+            description="\n".join(lines),
+            color=0xF1C40F
+        )
+        embed.set_footer(text=f"TOP Bot  •  /richlist  •  Pocket үлдэгдлээр эрэмбэлсэн")
         await interaction.response.send_message(embed=embed)
 
     # ══════════════════════════════════════════════════════════

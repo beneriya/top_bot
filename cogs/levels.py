@@ -35,11 +35,19 @@ class Levels(commands.Cog):
             await db.commit()
 
         if leveled:
+            needed_next = xp_for_level(new_lv)
             embed = discord.Embed(
-                title="⬆️ Level ахилаа!",
-                description=f"{message.author.mention} **{new_lv}** дүнгийн түвшинд хүрлээ! 🎉",
-                color=discord.Color.gold()
+                title=f"⬆️  Түвшин ахиллаа!",
+                description=(
+                    f"🎊 {message.author.mention}\n"
+                    f"**{new_lv - 1}** → **{new_lv}** дүн  ✨"
+                ),
+                color=0xFEE75C
             )
+            embed.set_thumbnail(url=message.author.display_avatar.url)
+            embed.add_field(name="⭐ Шинэ түвшин",   value=f"**{new_lv}**",         inline=True)
+            embed.add_field(name="✨ Дараагийн XP",   value=f"**{needed_next:,}**",  inline=True)
+            embed.set_footer(text="TOP Bot  •  /profile командаар дэлгэрэнгүйг харна уу")
             await message.channel.send(embed=embed)
             async with aiosqlite.connect(DB_PATH) as db:
                 db.row_factory = aiosqlite.Row
@@ -167,115 +175,116 @@ class Levels(commands.Cog):
         medal = "🥇" if bal_rank == 1 else "🥈" if bal_rank == 2 else "🥉" if bal_rank == 3 else "💹"
 
         # ── Build embed ───────────────────────────────────────────
-        embed = discord.Embed(
-            title=f"👤  {target.display_name}-н профайл",
-            color=0xFF4400 if remaining else 0x5865F2
+        # ── XP bar ─────────────────────────────────────────────────────
+        needed_xp  = xp_for_level(user["level"])
+        xp_filled  = round(12 * user["xp"] / needed_xp) if needed_xp else 0
+        xp_bar_str = "█" * xp_filled + "░" * (12 - xp_filled)
+
+        # ── Pocket/Bank totals ──────────────────────────────────────────
+        async with aiosqlite.connect(DB_PATH) as db2:
+            db2.row_factory = aiosqlite.Row
+            _ub = await db2.execute("SELECT bank FROM users WHERE user_id=? AND guild_id=?",
+                                    (target.id, interaction.guild_id))
+            _ubr = await _ub.fetchone()
+        bank_bal = (_ubr["bank"] if _ubr and _ubr["bank"] else 0)
+        total_w  = user["balance"] + bank_bal
+
+        # ── Color: red if in prison, purple if top-3, blue otherwise ───
+        if remaining:
+            clr = 0xED4245
+        elif bal_rank <= 3:
+            clr = 0xF1C40F
+        else:
+            clr = 0x5865F2
+
+        embed = discord.Embed(color=clr)
+        embed.set_author(
+            name=f"{target.display_name}  —  профайл",
+            icon_url=target.display_avatar.url
         )
         embed.set_thumbnail(url=target.display_avatar.url)
 
-        # XP / Level
+        # Row 1: Level / Rank / XP bar
         embed.add_field(
-            name=f"⭐  Түвшин #{lv_rank}",
-            value=f"**{user['level']}** дүнгийн түвшин\n{xp_bar}",
-            inline=False
-        )
-
-        # Balance (left) + Rank (right)  ← "flex" display
-        embed.add_field(
-            name="💰  Balance",
-            value=f"**{user['balance']:,} ₮**",
+            name="⭐ Түвшин",
+            value=f"**{user['level']}**  `#{lv_rank}`",
             inline=True
         )
         embed.add_field(
-            name=f"{medal}  Баялгийн ранк",
+            name=f"{medal} Баялгийн ранк",
             value=f"**#{bal_rank}** серверт",
             inline=True
         )
-        embed.add_field(name="​", value="​", inline=True)   # spacer
-
-        # Inventory
+        embed.add_field(name="​", value="​", inline=True)
         embed.add_field(
-            name="🎒  Inventory",
-            value=f"{inv_row['total_qty']} зүйл  ≈  {inv_row['total_val']:,} ₮",
-            inline=True
+            name="✨ XP",
+            value=f"`{xp_bar_str}` **{user['xp']:,} / {needed_xp:,}**",
+            inline=False
         )
 
-        # Family
+        # Row 2: Money
+        embed.add_field(name="💵 Pocket",  value=f"**{user['balance']:,} ₮**", inline=True)
+        embed.add_field(name="🏦 Bank",    value=f"**{bank_bal:,} ₮**",        inline=True)
+        embed.add_field(name="💎 Нийт",    value=f"**{total_w:,} ₮**",         inline=True)
+
+        # Row 3: Inventory / Family
         embed.add_field(
-            name="👨‍👩‍👧  Гэр бүл",
+            name="🎒 Inventory",
+            value=f"**{inv_row['total_qty']}** зүйл  ≈  {inv_row['total_val']:,} ₮",
+            inline=True
+        )
+        embed.add_field(
+            name="👨‍👩‍👧 Гэр бүл",
             value=f"{marriage_txt}\n{child_txt}",
             inline=True
         )
         embed.add_field(name="​", value="​", inline=True)
 
-        # Real estate + Vehicles (full-width)
-        embed.add_field(
-            name="🏠  Үл хөдлөх хөрөнгө",
-            value=house_txt,
-            inline=True
-        )
-        embed.add_field(
-            name="🚗  Хөдлөх хөрөнгө",
-            value=veh_txt,
-            inline=True
-        )
+        # Row 4: Assets
+        embed.add_field(name="🏠 Байшин",  value=house_txt, inline=True)
+        embed.add_field(name="🚗 Хөдлөх",  value=veh_txt,   inline=True)
         embed.add_field(name="​", value="​", inline=True)
 
-        # Prison
-        embed.add_field(
-            name="🏴  Шорон",
-            value=prison_val,
-            inline=False
-        )
-
-        # ── 🎭 Дүр ───────────────────────────────────────────────
+        # Row 5: Character
         if char:
             char = dict(char)
-            age     = calc_age(char)
-            gender  = GENDER_MN.get(char.get("gender",""), "—")
-            job_id  = char.get("job_id")
+            age    = calc_age(char)
+            gender = GENDER_MN.get(char.get("gender",""), "—")
+            job_id = char.get("job_id")
             job_txt = f"{JOBS[job_id]['emoji']} {JOBS[job_id]['name_mn']}" if job_id and job_id in JOBS else "💼 Ажилгүй"
-
-            # Эзэмшсэн мэргэжлүүд — хамгийн үнэтэй 3-г харуулах
             completed = await get_completed_courses(target.id, interaction.guild_id)
             if completed:
-                # Курс бүрийг нийт job salary-р эрэмбэлэх
-                sorted_courses = sorted(
+                sorted_c = sorted(
                     completed,
                     key=lambda c: JOBS.get(COURSES[c]["unlocks"], {}).get("salary", (0,0))[1]
                                   if c in COURSES else 0,
                     reverse=True
                 )
-                top3   = sorted_courses[:3]
-                rest   = len(sorted_courses) - 3
-                lines  = [f"{COURSES[c]['emoji']} {COURSES[c]['name_mn']}" for c in top3 if c in COURSES]
-                if rest > 0:
-                    lines.append(f"*болон {rest} бусад*")
-                course_txt = "\n".join(lines)
+                top3 = sorted_c[:3]; rest = len(sorted_c) - 3
+                clines = [f"{COURSES[c]['emoji']} {COURSES[c]['name_mn']}" for c in top3 if c in COURSES]
+                if rest > 0: clines.append(f"*+{rest} бусад*")
+                course_txt = "\n".join(clines)
             else:
                 course_txt = "📭 Курс эзэмшээгүй"
-
             embed.add_field(
-                name="🎭  Дүр",
+                name="🎭 Дүр",
                 value=f"{gender}  •  **{age} нас**\n{job_txt}",
                 inline=True
             )
-            embed.add_field(
-                name="🎓  Мэргэжлүүд",
-                value=course_txt,
-                inline=True
-            )
+            embed.add_field(name="🎓 Мэргэжлүүд", value=course_txt, inline=True)
             embed.add_field(name="​", value="​", inline=True)
         else:
             embed.add_field(
-                name="🎭  Дүр",
+                name="🎭 Дүр",
                 value="*`/register` командаар дүр үүсгэнэ үү*",
                 inline=False
             )
 
-        embed.set_footer(text=f"TOP Bot  •  {target.name}")
-        await interaction.followup.send(embed=embed)
+        # Prison row
+        embed.add_field(name="🏴 Шорон", value=prison_val, inline=False)
 
+        embed.set_footer(text=f"TOP Bot  •  {target.name}  •  /profile")
+        await interaction.followup.send(embed=embed)
     # ── /top ──────────────────────────────────────────────────────
     @app_commands.command(name="top", description="Серверийн TOP 10 идэвхтэй хүмүүс")
     async def leaderboard(self, interaction: discord.Interaction):
@@ -288,17 +297,28 @@ class Levels(commands.Cog):
             )
             rows = await cur.fetchall()
 
-        embed  = discord.Embed(title="🏆 Идэвхийн жагсаалт TOP 10", color=discord.Color.gold())
+        if not rows:
+            await interaction.response.send_message("⚠️ Мэдээлэл байхгүй.", ephemeral=True)
+            return
         medals = ["🥇", "🥈", "🥉"]
+        top_xp = (rows[0]["level"] * 1000 + rows[0]["xp"]) or 1
+        def lbar(lv, xp, mx, length=8):
+            score = lv * 1000 + xp
+            filled = round(length * score / mx) if mx else 0
+            return "█" * filled + "░" * (length - filled)
+        lines = []
         for i, row in enumerate(rows):
-            member = interaction.guild.get_member(row["user_id"])
-            name   = member.display_name if member else f"ID:{row['user_id']}"
-            medal  = medals[i] if i < 3 else f"**{i+1}.**"
-            embed.add_field(
-                name=f"{medal} {name}",
-                value=f"Түвшин: **{row['level']}** | XP: **{row['xp']}**",
-                inline=False
-            )
+            m  = interaction.guild.get_member(row["user_id"])
+            nm = (m.display_name if m else f"User#{row['user_id']}")[:16]
+            med = medals[i] if i < 3 else f"`#{i+1:>2}`"
+            bar = lbar(row["level"], row["xp"], top_xp)
+            lines.append(f"{med}  `{bar}`  LV.**{row['level']}**  •  {nm}")
+        embed = discord.Embed(
+            title="⭐  Түвшний жагсаалт TOP 10",
+            description="\n".join(lines),
+            color=0xFEE75C
+        )
+        embed.set_footer(text="TOP Bot  •  /top  •  Түвшин + XP-р эрэмбэлсэн")
         await interaction.response.send_message(embed=embed)
 
     # ── /level_role_add ───────────────────────────────────────────

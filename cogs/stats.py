@@ -48,46 +48,44 @@ class Stats(commands.Cog):
 
         net_str = f"+{net:,} ₮" if net >= 0 else f"{net:,} ₮"
 
-        embed = discord.Embed(
-            title=f"📊 {target.display_name}-н статистик",
-            color=discord.Color.blurple()
-        )
-        embed.set_thumbnail(url=target.display_avatar.url)
-        embed.add_field(name="⭐ Түвшин",        value=f"**{user['level']}**",       inline=True)
-        embed.add_field(name="💰 Үлдэгдэл",      value=f"**{user['balance']:,} ₮**", inline=True)
-        embed.add_field(name="🏆 Зэрэглэл",      value=f"**#{rank}**",               inline=True)
-        embed.add_field(name="💬 Нийт мессеж",   value=f"**{user['messages']:,}**",  inline=True)
-        embed.add_field(name="✨ XP",             value=f"**{user['xp']}**",          inline=True)
-        joined = target.joined_at.strftime("%Y-%m-%d") if target.joined_at else "Тодорхойгүй"
-        embed.add_field(name="📅 Нэгдсэн огноо", value=joined, inline=True)
-
-        # ── Тоглоомын статистик блок ─────────────────────────────
-        embed.add_field(name="​", value="─── 🎲 **Мориитой тоглоом** ───", inline=False)
-        embed.add_field(
-            name="🎯 Азны үнэлгээ",
-            value=f"**{luck}**" + (f"  `{win_rate:.1f}%`" if g_played > 0 else ""),
-            inline=False
-        )
-        embed.add_field(name="✅ Ялалт",               value=f"**{g_wins:,}** удаа",   inline=True)
-        embed.add_field(name="❌ Ялагдал",             value=f"**{g_losses:,}** удаа", inline=True)
-        embed.add_field(name="🎮 Нийт тоглосон",       value=f"**{g_played:,}** удаа", inline=True)
-        embed.add_field(name="💸 Нийт урсгасан",       value=f"**{g_wager:,} ₮**",     inline=True)
-        embed.add_field(name="📈 Нийт олсон",          value=f"**+{g_won:,} ₮**",       inline=True)
-        embed.add_field(name="📉 Нийт алдсан",         value=f"**-{g_lost:,} ₮**",      inline=True)
-        embed.add_field(name="💹 Цэвэр ашиг/алдагдал", value=f"**{net_str}**",          inline=False)
-
-        # ── Санхүү & тэнсэн ─────────────────────────────────────
         tension   = user["tension"]   if "tension"   in user.keys() else 0
         bank_bal  = user["bank"]      if "bank"      in user.keys() else 0
         happiness = user["happiness"] if "happiness" in user.keys() else 10
-
-        t_bar   = "\u26a1" * tension + "\u25ab\ufe0f" * max(0, 6 - tension)
-        h_emoji = "\U0001f60a" if happiness >= 15 else ("\U0001f610" if happiness >= 8 else "\U0001f614")
-        embed.add_field(name="\u200b", value="\u2500\u2500\u2500 \U0001f4b0 **\u0421\u0430\u043d\u0445\u04af\u04af & \u041d\u0438\u0439\u0433\u043c\u0438\u0439\u043d \u0441\u0442\u0430\u0442\u0443\u0441** \u2500\u2500\u2500", inline=False)
-        embed.add_field(name="\U0001f3e6 Bank",          value=f"**{bank_bal:,} \u20ae**",   inline=True)
-        embed.add_field(name=f"{h_emoji} \u0410\u0437 \u0436\u0430\u0440\u0433\u0430\u043b", value=f"**{happiness}/20**", inline=True)
-        embed.add_field(name="\u26a1 \u0422\u044d\u043d\u0441\u044d\u043d",     value=f"**{tension}/6** {t_bar}",  inline=True)
-
+        h_filled = round(10 * happiness / 20)
+        h_bar    = "█" * h_filled + "░" * (10 - h_filled)
+        t_bar    = "⚡" * tension + "▫️" * max(0, 6 - tension)
+        h_emoji  = "😊" if happiness >= 15 else ("😐" if happiness >= 8 else "😔")
+        joined   = target.joined_at.strftime("%Y-%m-%d") if target.joined_at else "—"
+        embed = discord.Embed(
+            title=f"📊  {target.display_name}",
+            color=0x5865F2
+        )
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.add_field(name="⭐ Түвшин",     value=f"**{user['level']}**",       inline=True)
+        embed.add_field(name="✨ XP",          value=f"**{user['xp']:,}**",        inline=True)
+        embed.add_field(name="🏆 Зэрэгэлэл",  value=f"**#{rank}**",               inline=True)
+        embed.add_field(name="💰 Pocket",    value=f"**{user['balance']:,} ₮**", inline=True)
+        embed.add_field(name="🏦 Bank",      value=f"**{bank_bal:,} ₮**",        inline=True)
+        embed.add_field(name="💬 Мессэж",     value=f"**{user['messages']:,}**",  inline=True)
+        embed.add_field(
+            name=f"{h_emoji} Аз жаргал",
+            value=f"`{h_bar}` **{happiness}/20**",
+            inline=True
+        )
+        embed.add_field(name="⚡ Тэнсэн", value=f"**{tension}/6**  {t_bar}", inline=True)
+        embed.add_field(name="📅 Нэгдсэн",   value=joined, inline=True)
+        win_bar_f = round(10 * g_wins / g_played) if g_played else 0
+        win_bar   = "✅" * win_bar_f + "❌" * (10 - win_bar_f)
+        embed.add_field(
+            name="────────────────────────",
+            value=(
+                f"🎲 **Мориитой тоглоом**  •  {g_played:,} тоглолт  •  {luck}\n"
+                f"`{win_bar}` {win_rate:.1f}% win rate  •  ✅ {g_wins:,}  │  ❌ {g_losses:,}\n"
+                f"💸 Урсгасан: **{g_wager:,} ₮**  •  📉 Цэвэр: **{net_str}**"
+            ),
+            inline=False
+        )
+        embed.set_footer(text=f"TOP Bot  •  /stats  •  {joined} нэгдсэн")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="serverinfo", description="Серверийн статистик харах")
@@ -100,15 +98,19 @@ class Stats(commands.Cog):
             )
             row = await cursor.fetchone()
 
-        embed = discord.Embed(title=f"🌐 {guild.name}", color=discord.Color.blue())
-        embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
-        embed.add_field(name="👥 Нийт гишүүн", value=f"**{guild.member_count}**", inline=True)
-        embed.add_field(name="💬 Нийт каналууд", value=f"**{len(guild.channels)}**", inline=True)
-        embed.add_field(name="🎭 Нийт role", value=f"**{len(guild.roles)}**", inline=True)
-        embed.add_field(name="📨 Нийт мессеж", value=f"**{row[1] or 0:,}**", inline=True)
-        embed.add_field(name="💰 Нийт эдийн засаг", value=f"**{row[2] or 0:,} ₮**", inline=True)
         created = guild.created_at.strftime("%Y-%m-%d")
-        embed.add_field(name="📅 Үүссэн огноо", value=created, inline=True)
+        embed = discord.Embed(
+            title=f"🌐  {guild.name}",
+            color=0x5865F2
+        )
+        embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
+        embed.add_field(name="👥 Гишүүд",      value=f"**{guild.member_count:,}**",    inline=True)
+        embed.add_field(name="💬 Каналууд",    value=f"**{len(guild.channels):,}**",   inline=True)
+        embed.add_field(name="🎭 Roles",       value=f"**{len(guild.roles):,}**",      inline=True)
+        embed.add_field(name="📨 Нийт мессеж", value=f"**{row[1] or 0:,}**",           inline=True)
+        embed.add_field(name="💰 Эдийн засаг", value=f"**{row[2] or 0:,} ₮**",         inline=True)
+        embed.add_field(name="📅 Үүссэн",      value=created,                           inline=True)
+        embed.set_footer(text="TOP Bot  •  /serverinfo")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="active", description="Серверийн хамгийн идэвхтэй гишүүд")
@@ -121,17 +123,28 @@ class Stats(commands.Cog):
             )
             rows = await cursor.fetchall()
 
-        embed = discord.Embed(title="💬 Хамгийн идэвхтэй гишүүд TOP 10", color=discord.Color.green())
-        medals = ["🥇", "🥈", "🥉"]
+        if not rows:
+            await interaction.response.send_message("⚠️ Мэдээлэл байхгүй.", ephemeral=True)
+            return
+        top_msg = rows[0]["messages"] or 1
+        medals  = ["🥇", "🥈", "🥉"]
+        def mbar(n, mx, length=8):
+            filled = round(length * n / mx) if mx else 0
+            return "█" * filled + "░" * (length - filled)
+        lines = []
         for i, row in enumerate(rows):
-            member = interaction.guild.get_member(row["user_id"])
-            name = member.display_name if member else f"ID:{row['user_id']}"
-            medal = medals[i] if i < 3 else f"**{i+1}.**"
-            embed.add_field(
-                name=f"{medal} {name}",
-                value=f"💬 **{row['messages']:,}** мессеж",
-                inline=False
-            )
+            m   = interaction.guild.get_member(row["user_id"])
+            nm  = (m.display_name if m else f"User#{row['user_id']}")[:16]
+            med = medals[i] if i < 3 else f"`#{i+1:>2}`"
+            bar = mbar(row["messages"], top_msg)
+            pct = int(row["messages"] / top_msg * 100)
+            lines.append(f"{med}  `{bar}` **{row['messages']:,}**  •  {nm}")
+        embed = discord.Embed(
+            title="💬  Хамгийн идэвхтэй гишүүд",
+            description="\n".join(lines),
+            color=0x57F287
+        )
+        embed.set_footer(text="TOP Bot  •  /active  •  Мессежний тоогоор эрэмбэлсэн")
         await interaction.response.send_message(embed=embed)
 
 async def setup(bot):

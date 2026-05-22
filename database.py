@@ -57,6 +57,7 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN rob_cooldown TEXT DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN hack_cooldown TEXT DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN prison_reason TEXT DEFAULT NULL",
+        "ALTER TABLE rpg ADD COLUMN kills INTEGER DEFAULT 0",
         ]:
             try: await db.execute(col)
             except: pass

@@ -28,12 +28,12 @@ async def _update_game_stats(user_id: int, guild_id: int, bet: int, winnings: in
 
 # ── RPG enemies ───────────────────────────────────────────────
 ENEMIES = [
-    {"name": "\U0001f43a Чоно",         "hp": 40,  "attack": 8,  "reward": 300},
-    {"name": "\U0001f417 Зэрлэг гахай", "hp": 60,  "attack": 12, "reward": 500},
-    {"name": "\U0001f409 Луу",          "hp": 150, "attack": 25, "reward": 1500},
-    {"name": "\U0001f480 Яс тэнүүлч",   "hp": 80,  "attack": 15, "reward": 700},
-    {"name": "\U0001f9df Зомби",         "hp": 100, "attack": 18, "reward": 900},
-    {"name": "\U0001f479 Чөтгөр",        "hp": 120, "attack": 22, "reward": 1200},
+    {"name": "\U0001f43a Чоно",         "hp": 40,  "attack": 8,  "reward_min": 800,  "reward_max": 1100},
+    {"name": "\U0001f417 Зэрлэг гахай", "hp": 60,  "attack": 12, "reward_min": 900,  "reward_max": 1200},
+    {"name": "\U0001f480 Яс тэнүүлч",   "hp": 80,  "attack": 15, "reward_min": 1000, "reward_max": 1350},
+    {"name": "\U0001f9df Зомби",         "hp": 100, "attack": 18, "reward_min": 1150, "reward_max": 1500},
+    {"name": "\U0001f479 Чөтгөр",        "hp": 120, "attack": 22, "reward_min": 1350, "reward_max": 1700},
+    {"name": "\U0001f409 Луу",          "hp": 150, "attack": 25, "reward_min": 1650, "reward_max": 2000},
 ]
 
 # ── Шагай ─────────────────────────────────────────────────────
@@ -125,9 +125,9 @@ class Games(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     # ══════════════════════════════════════════════════════════
-    #  /coinflip  — nerfed to 1.75x (was 2x)
+    #  /coinflip  — nerfed to 1.7x (was 2x)
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="coinflip", description="Зоос шидэх — 50/50, 1.75x")
+    @app_commands.command(name="coinflip", description="Зоос шидэх — 50/50, 1.7x")
     @app_commands.describe(choice="Таны сонголт", bet="Бооцооны дүн")
     @app_commands.choices(choice=[
         app_commands.Choice(name="\U0001f985 Толгой (Heads)", value="heads"),
@@ -148,8 +148,8 @@ class Games(commands.Cog):
         labels = {"heads": "\U0001f985 Толгой (Heads)", "tails": "\U0001fa99 Сүүл (Tails)"}
 
         if result == choice:
-            winnings = int(bet * 0.75)
-            outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** (1.75x)"
+            winnings = int(bet * 0.70)
+            outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** (1.7x)"
             color    = discord.Color.green()
         else:
             winnings = -bet
@@ -354,58 +354,38 @@ class Games(commands.Cog):
     async def battle(self, interaction: discord.Interaction):
         rpg = await get_rpg(interaction.user.id, interaction.guild_id)
         if rpg["hp"] <= 0:
-            await interaction.response.send_message(
-                "\u274c HP байхгүй байна! `/heal` командаар эмчлүүлнэ үү.", ephemeral=True
+            embed = discord.Embed(
+                title="🚫 HP дууссан!",
+                description="❤️ Таны HP **0** байна. Тулалдах боломжгүй!\n\n💊 `/heal` командаар эмчлүүлээрэй.",
+                color=0x2b2d31
             )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        enemy      = random.choice(ENEMIES).copy()
-        player_hp  = rpg["hp"]
-        battle_log = []
-        round_num  = 1
+        enemy     = random.choice(ENEMIES).copy()
+        player_hp = rpg["hp"]
+        max_hp    = rpg["max_hp"]
+        log_atk   = []
+        round_num = 1
 
         while player_hp > 0 and enemy["hp"] > 0:
             dmg_e = max(1, rpg["attack"] - random.randint(0,3) + random.randint(0,5))
             enemy["hp"] -= dmg_e
-            battle_log.append(f"\u2694\ufe0f Та **{dmg_e}** хохирол үзүүллээ")
+            log_atk.append(f"⚔️ Та **{dmg_e}** хохирол үзүүллээ")
             if enemy["hp"] <= 0:
                 break
             dmg_p = max(1, enemy["attack"] - rpg["defense"] + random.randint(-2,3))
             player_hp -= dmg_p
-            battle_log.append(f"\U0001f4a5 {enemy['name']} танд **{dmg_p}** хохирол үзүүллээ")
+            log_atk.append(f"💥 {enemy['name']} танд **{dmg_p}** хохирол үзүүллээ")
             round_num += 1
             if round_num > 10:
                 break
 
-        if enemy["hp"] <= 0:
-            reward = enemy["reward"] + random.randint(0, 200)
-            await update_balance(interaction.user.id, interaction.guild_id, reward)
-            async with aiosqlite.connect(DB_PATH) as db:
-                await db.execute(
-                    "UPDATE rpg SET hp=? WHERE user_id=? AND guild_id=?",
-                    (max(1, player_hp), interaction.user.id, interaction.guild_id)
-                )
-                await db.commit()
-            embed = discord.Embed(
-                title=f"\u2694\ufe0f Тулаан — {enemy['name']} ялагдлаа!",
-                description="\n".join(battle_log[-6:]),
-                color=discord.Color.green()
-            )
-            embed.add_field(name="\U0001f3c6 Шагнал",    value=f"**{reward:,} \u20ae**",        inline=True)
-            embed.add_field(name="\u2764\ufe0f Үлдсэн HP", value=f"**{max(1, player_hp)}**", inline=True)
-        else:
-            async with aiosqlite.connect(DB_PATH) as db:
-                await db.execute(
-                    "UPDATE rpg SET hp=0 WHERE user_id=? AND guild_id=?",
-                    (interaction.user.id, interaction.guild_id)
-                )
-                await db.commit()
-            embed = discord.Embed(
-                title="\U0001f480 Тулаан — Та ялагдлаа!",
-                description="\n".join(battle_log[-6:]),
-                color=discord.Color.red()
-            )
-            embed.add_field(name="\u2764\ufe0f HP", value="**0** — `/heal` командаар эмчлүүлнэ үү", inline=False)
+        log_str = "\n".join(log_atk[-6:]) or "—"
+
+        def hp_bar(cur, mx, length=10):
+            filled = round(length * max(0, cur) / mx)
+            return "█" * filled + "░" * (length - filled)
 
         # Зэвсэг/хуягын эдэлгээ
         durability_notes = []
@@ -415,36 +395,88 @@ class Games(commands.Cog):
                 ("weapon", 10, "attack", "weapon", "Нударга"),
                 ("armor",   5, "defense","armor",  "Хувцас"),
             ]:
-                cur = await db.execute("""
+                cur2 = await db.execute("""
                     SELECT i.item_id, i.quantity, s.name, s.effect_value
                     FROM inventory i JOIN shop s ON i.item_id = s.item_id
                     WHERE i.user_id=? AND i.guild_id=? AND s.item_type=?
                 """, (interaction.user.id, interaction.guild_id, eq_type))
-                row = await cur.fetchone()
-                if row:
-                    new_qty = row["quantity"] - 1
+                eq_row = await cur2.fetchone()
+                if eq_row:
+                    new_qty = eq_row["quantity"] - 1
                     if new_qty <= 0:
                         await db.execute(
                             "DELETE FROM inventory WHERE item_id=? AND user_id=? AND guild_id=?",
-                            (row["item_id"], interaction.user.id, interaction.guild_id)
+                            (eq_row["item_id"], interaction.user.id, interaction.guild_id)
                         )
                         await db.execute(
                             f"UPDATE rpg SET {stat_col}=?, {name_col}=? WHERE user_id=? AND guild_id=?",
                             (default_stat, default_name, interaction.user.id, interaction.guild_id)
                         )
-                        durability_notes.append(f"\U0001f494 **{row['name']}** эвдэрлээ!")
+                        durability_notes.append(f"💔 **{eq_row['name']}** эвдэрлээ!")
                     else:
                         await db.execute(
                             "UPDATE inventory SET quantity=? WHERE item_id=? AND user_id=? AND guild_id=?",
-                            (new_qty, row["item_id"], interaction.user.id, interaction.guild_id)
+                            (new_qty, eq_row["item_id"], interaction.user.id, interaction.guild_id)
                         )
                         if new_qty <= 3:
-                            durability_notes.append(f"\u26a0\ufe0f **{row['name']}** эдэлгээ: {new_qty} тулаан үлдлээ")
+                            durability_notes.append(f"⚠️ **{eq_row['name']}** эдэлгээ: **{new_qty}** тулаан үлдлээ")
             await db.commit()
 
-        if durability_notes:
-            embed.add_field(name="\U0001f527 Тоног төхөөрөмж", value="\n".join(durability_notes), inline=False)
+        if enemy["hp"] <= 0:
+            reward = random.randint(enemy["reward_min"], enemy["reward_max"])
+            await update_balance(interaction.user.id, interaction.guild_id, reward)
+            new_hp = max(1, player_hp)
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "UPDATE rpg SET hp=?, kills=kills+1 WHERE user_id=? AND guild_id=?",
+                    (new_hp, interaction.user.id, interaction.guild_id)
+                )
+                await db.commit()
+            rpg2       = await get_rpg(interaction.user.id, interaction.guild_id)
+            total_kills = rpg2.get("kills", 1)
+            bar_now    = hp_bar(new_hp, max_hp)
+            embed = discord.Embed(
+                title=f"⚔️  {enemy['name']}  ялагдлаа!",
+                color=0x57f287
+            )
+            embed.add_field(
+                name="📜 Тулааны дүн",
+                value="```\n" + log_str + "\n```",
+                inline=False
+            )
+            embed.add_field(name="💰 Шагнал",  value=f"**{reward:,} ₮**", inline=True)
+            embed.add_field(name="❤️ HP",       value=f"`{bar_now}` {new_hp}/{max_hp}", inline=True)
+            embed.add_field(name="💀 Алуулга", value=f"**{total_kills}** 💀", inline=True)
+        else:
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "UPDATE rpg SET hp=0 WHERE user_id=? AND guild_id=?",
+                    (interaction.user.id, interaction.guild_id)
+                )
+                await db.commit()
+            bar_dead = hp_bar(0, max_hp)
+            embed = discord.Embed(
+                title=f"💀  {enemy['name']}  танийг ялав!",
+                color=0xed4245
+            )
+            embed.add_field(
+                name="📜 Тулааны дүн",
+                value="```\n" + log_str + "\n```",
+                inline=False
+            )
+            embed.add_field(
+                name="❤️ HP",
+                value=f"`{bar_dead}` 0/{max_hp}\n💊 `/heal` командаар эмчлүүлээрэй!",
+                inline=False
+            )
 
+        if durability_notes:
+            embed.add_field(
+                name="🔧 Тоног төхөөрөмж",
+                value="\n".join(durability_notes),
+                inline=False
+            )
+        embed.set_footer(text=f"⚔️ {interaction.user.display_name}  •  {enemy['name']}")
         await interaction.response.send_message(embed=embed)
 
     # ══════════════════════════════════════════════════════════
@@ -520,6 +552,90 @@ class Games(commands.Cog):
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
         embed.set_footer(text="/battle тулалдах  •  /heal эмчлэх  •  /shop other зэвсэг авах")
         await interaction.response.send_message(embed=embed)
+
+
+    # ══════════════════════════════════════════════════════
+
+    # ══════════════════════════════════════════════════════════
+    #  /rlb  — RPG kills leaderboard
+    # ══════════════════════════════════════════════════════════
+    @app_commands.command(name="rlb", description="Дайчдын самбар — хамгийн их алуулсан топ жагсаалт")
+    async def rlb(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("""
+                SELECT r.user_id, r.kills,
+                       COALESCE(c.name, CAST(r.user_id AS TEXT)) AS display_name
+                FROM rpg r
+                LEFT JOIN character_info c ON r.user_id=c.user_id AND r.guild_id=c.guild_id
+                WHERE r.guild_id=? AND r.kills > 0
+                ORDER BY r.kills DESC LIMIT 15
+            """, (interaction.guild_id,))
+            rows = await cursor.fetchall()
+
+        if not rows:
+            embed = discord.Embed(
+                title="⚔️  RPG Дайчдын Самбар",
+                description="⚠️ Одоо хэн алуулга байхгүй байна. `/battle` тоглоод эхлээ!",
+                color=0x5865f2
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
+        def get_title(rank):
+            if rank == 1:  return "\U0001f451 Баатар"
+            if rank <= 3:  return "⚡ Хатан зоригт"
+            if rank <= 7:  return "⚔️ Дайчин"
+            return "\U0001fa96 Цэрэг"
+
+        def get_medal(rank):
+            if rank == 1: return "\U0001f947"
+            if rank == 2: return "\U0001f948"
+            if rank == 3: return "\U0001f949"
+            return f"`#{rank:>2}`"
+
+        def kill_bar(kills, top, length=8):
+            filled = round(length * kills / top) if top else 0
+            return "█" * filled + "░" * (length - filled)
+
+        top_kills = rows[0]["kills"]
+        lines = []
+        for i, row in enumerate(rows):
+            rank  = i + 1
+            name  = str(row["display_name"])[:16]
+            kills = row["kills"]
+            bar   = kill_bar(kills, top_kills)
+            pct   = int(kills / top_kills * 100)
+            lines.append(
+                f"{get_medal(rank)}  **{get_title(rank)}**\n"
+                f"└ `{name}`  •  **{kills}** \U0001f480  `{bar}` {pct}%"
+            )
+
+        col1 = "\n\n".join(lines[:8])
+        col2 = "\n\n".join(lines[8:]) if len(lines) > 8 else None
+
+        sep = "─" * 28
+        desc = (
+            f"{sep}\n"
+            f"\U0001f451 **Баатар**  •  "
+            f"⚡ **Хатан зоригт** (2–3)  •  "
+            f"⚔️ **Дайчин** (4–7)  •  "
+            f"\U0001fa96 **Цэрэг** (8+)\n"
+            f"{sep}"
+        )
+
+        embed = discord.Embed(
+            title="⚔️  RPG Дайчдын Самбар  ⚔️",
+            description=desc,
+            color=0x5865f2
+        )
+        embed.add_field(name="\U0001f3c6 Топ дайчид", value=col1, inline=bool(col2))
+        if col2:
+            embed.add_field(name="​", value=col2, inline=True)
+        embed.set_footer(text=f"\U0001f480 Нийт {len(rows)} дайчин  •  /battle тоглоод эрэмжлэлээ!")
+        await interaction.followup.send(embed=embed)
 
 
 async def setup(bot):

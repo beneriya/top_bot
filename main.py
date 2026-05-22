@@ -55,7 +55,7 @@ NO_CHAR_REQUIRED = {
     "givemoney", "releaseprison", "giverole", "removerole",
     "level_role_add",
     "eruuljuuleh", "prisonlist",
-    "jobs", "courses",
+    "jobs", "courses", "rlb",
     # Bank (no char needed)
     "deposit", "withdraw", "bank",
     # Admin commands
