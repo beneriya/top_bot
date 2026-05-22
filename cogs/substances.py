@@ -53,7 +53,7 @@ def get_state_text(level: int, states: list) -> str:
 
 def make_bar(value: int, max_val: int, length: int = 12) -> str:
     filled = round((value / max_val) * length) if max_val else 0
-    return f"`{'█' * filled}{'░' * (length - filled)}`"
+    return f"`{'▰' * filled}{'▱' * (length - filled)}`"
 
 def level_color(level: int) -> int:
     if level >= 28: return 0xFF0000
