@@ -388,6 +388,24 @@ class Economy(commands.Cog):
             )
             return
 
+
+        # 18 насны хязгаар — архи, тамхи, вэйп
+        if item["item_type"] in ("alcohol", "cigarette", "vape"):
+            char = await get_char(interaction.user.id, interaction.guild_id)
+            if not char:
+                await interaction.response.send_message(
+                    "🎭 Эхлээд `/register` командаар дүр үүсгэнэ үү!", ephemeral=True
+                )
+                return
+            age = calc_age(dict(char))
+            if age < 18:
+                await interaction.response.send_message(
+                    f"🔞 **{item['emoji']} {item['name']}** зарахгүй!\n"
+                    f"Та **{age} настай** байна. 18 наснаас дээш хүнд л зарна.",
+                    ephemeral=True
+                )
+                return
+
         total_price = item["price"] * quantity
         user        = await get_user(interaction.user.id, interaction.guild_id)
 
