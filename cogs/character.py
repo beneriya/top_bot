@@ -292,6 +292,26 @@ class AgeModal(discord.ui.Modal, title="🎂 Насаа оруулна уу"):
         # → bg_task өнгөрсөн milestone-д дахиад DM илгээхгүй
         init_milestone = max((m for m in MILESTONES if m <= age), default=0)
 
+        # Existing alive character check — нэг хүн нэг дүр
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            _cur = await db.execute(
+                "SELECT birth_time, death_age FROM character_info WHERE user_id=? AND guild_id=?",
+                (interaction.user.id, interaction.guild_id)
+            )
+            _existing = await _cur.fetchone()
+        if _existing:
+            _hours = (datetime.utcnow() - datetime.fromisoformat(_existing["birth_time"])).total_seconds() / 3600
+            _cur_age = int(_hours / HOURS_PER_GAME_YEAR)
+            if _cur_age < _existing["death_age"]:
+                await interaction.response.send_message(
+                    "🎭 Та айл хэдийн дүртэй байна! "
+                    "Дүр нас барсны дараа "
+                    "л шинэ дүр үүсгэх боломжтой.",
+                    ephemeral=True
+                )
+                return
+
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 """INSERT OR REPLACE INTO character_info
@@ -678,7 +698,6 @@ class Character(commands.Cog):
                         if age >= ms > last_ms:
                             try:
                                 target_user = await self.bot.fetch_user(char["user_id"])
-                                owner       = await self.bot.fetch_user(OWNER_ID)
                                 embed = discord.Embed(
                                     title="🎂 Насны баяр",
                                     description=(
@@ -690,7 +709,7 @@ class Character(commands.Cog):
                                 milestones_left = [m for m in MILESTONES if m > ms]
                                 if milestones_left:
                                     embed.set_footer(text=f"Дараагийн: {milestones_left[0]} нас")
-                                await owner.send(embed=embed)
+                                await target_user.send(embed=embed)
                             except Exception:
                                 pass
                             await db.execute(

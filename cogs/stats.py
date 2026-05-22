@@ -22,7 +22,7 @@ class Stats(commands.Cog):
             row = await cursor.fetchone()
             rank = row[0] + 1
 
-        # ── Мориитой тоглоомын статистик ────────────────────────
+        # ── Мөрийтэй тоглоомын статистик ────────────────────────
         g_wins   = user["game_wins"]        if "game_wins"        in user.keys() else 0
         g_losses = user["game_losses"]      if "game_losses"      in user.keys() else 0
         g_won    = user["game_won_amount"]  if "game_won_amount"  in user.keys() else 0
@@ -79,7 +79,7 @@ class Stats(commands.Cog):
         embed.add_field(
             name="────────────────────────",
             value=(
-                f"🎲 **Мориитой тоглоом**  •  {g_played:,} тоглолт  •  {luck}\n"
+                f"🎲 **Мөрийтэй тоглоом**  •  {g_played:,} тоглолт  •  {luck}\n"
                 f"`{win_bar}` {win_rate:.1f}% win rate  •  ✅ {g_wins:,}  │  ❌ {g_losses:,}\n"
                 f"💸 Урсгасан: **{g_wager:,} ₮**  •  📉 Цэвэр: **{net_str}**"
             ),

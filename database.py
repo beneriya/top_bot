@@ -391,6 +391,17 @@ async def init_db():
             )
             await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('shop_food_v1','1')")
 
+        # ── Vehicle emoji fix (vehicle_emoji_v1) ───────────────────
+        cur_ve = await db.execute("SELECT value FROM bot_config WHERE key='vehicle_emoji_v1'")
+        if not await cur_ve.fetchone():
+            for emoji, name in [
+                ("🏎️", "Спорт машин"),
+                ("🚡",     "Нисдэг тэрэг"),
+                ("🛥️", "Завь"),
+            ]:
+                await db.execute("UPDATE shop SET emoji=? WHERE name=?", (emoji, name))
+            await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('vehicle_emoji_v1','1')")
+
         await db.commit()
 
     # ── One-time data restore ─────────────────────────────────────

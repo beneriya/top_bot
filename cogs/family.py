@@ -468,7 +468,7 @@ class Family(commands.Cog):
                 inline=True
             )
         else:
-            embed.add_field(name="💍 Хань", value="Одоохондоо ганц", inline=True)
+            embed.add_field(name="💍 Хань", value="Одоохондоо ганц бие", inline=True)
 
         # Эцэг/эх
         if fam["parent_id"]:

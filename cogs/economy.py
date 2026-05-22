@@ -680,7 +680,7 @@ class Economy(commands.Cog):
             embed = discord.Embed(
                 title="🤢 Аз жаргал дүүрэн — эрүүл мэнд хохирлоо!",
                 description=(
-                    f"{food['emoji']} **{food['name']}** идэхэд аз жаргал аль хэдээн **20/20** байна.\n"
+                    f"{food['emoji']} **{food['name']}** идэхэд аз жаргал аль хэдийн **20/20** байна.\n"
                     f"Хэтрүүлэн идсэнийн улмаас эрүүл мэнд хохирлоо!\n"
                     f"💸 Эрүүл мэндийн суутгал: **-{penalty:,} ₮** (10%)"
                 ),
@@ -708,7 +708,10 @@ class Economy(commands.Cog):
         capped_msg = (f"\n*(Дээд хэмжээнд хүрсэн тул +{actual_gain} л нэмэгдлээ)*"
                       if actual_gain < gain else "")
         embed = discord.Embed(
-            title=f"{food['emoji']} {food['name']} идлээ!",
+            title=(
+            f"{food['emoji']} {food['name']} "
+            + ("уулаа!" if food['name'] in ("Ус", "Ундаа", "Жимсний шүүс") else "идлээ!")
+        ),
             description=f"Аз жаргал **+{actual_gain}** нэмэгдлээ!{capped_msg}",
             color=discord.Color.green()
         )

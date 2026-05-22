@@ -115,28 +115,9 @@ class Admin(commands.Cog):
             f"✅ **{member.display_name}**-н ажлыг **{job_name}** болголоо.", ephemeral=True
         )
 
-    # ── /adminrevive ──────────────────────────────────────────
-    @app_commands.command(name="adminrevive", description="[Admin] Нас барсан дүрийг амилуулах")
-    @app_commands.describe(member="Хэрэглэгч", age="Амилуулах нас (5–60)")
-    @admin_only()
-    async def adminrevive(self, interaction: discord.Interaction, member: discord.Member, age: int = 20):
-        char = await get_char(member.id, interaction.guild_id)
-        if not char:
-            await interaction.response.send_message(f"❌ **{member.display_name}** дүр үүсгээгүй байна!", ephemeral=True)
-            return
-        new_birth = datetime.utcnow() - timedelta(hours=age * HOURS_PER_GAME_YEAR)
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "UPDATE character_info SET birth_time=?, death_notified=0 WHERE user_id=? AND guild_id=?",
-                (new_birth.isoformat(), member.id, interaction.guild_id)
-            )
-            await db.commit()
-        await interaction.response.send_message(
-            f"✅ **{member.display_name}**-н дүр **{age} настайгаар** амилуулагдлаа! 🌱", ephemeral=True
-        )
 
     # ── /adminkill ────────────────────────────────────────────
-    @app_commands.command(name="adminkill", description="[Admin] Дүрийг шууд нас барах болгох")
+    @app_commands.command(name="adminkill", description="[Admin] Дүрийн бүх мэдээлэл database-с устгах")
     @app_commands.describe(member="Хэрэглэгч")
     @admin_only()
     async def adminkill(self, interaction: discord.Interaction, member: discord.Member):
@@ -146,15 +127,17 @@ class Admin(commands.Cog):
             return
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
-                "UPDATE character_info SET birth_time=? WHERE user_id=? AND guild_id=?",
-                (
-                    (datetime.utcnow() - timedelta(hours=(char["death_age"] + 1) * HOURS_PER_GAME_YEAR)).isoformat(),
-                    member.id, interaction.guild_id
-                )
+                "DELETE FROM character_info WHERE user_id=? AND guild_id=?",
+                (member.id, interaction.guild_id)
+            )
+            await db.execute(
+                "DELETE FROM user_courses WHERE user_id=? AND guild_id=?",
+                (member.id, interaction.guild_id)
             )
             await db.commit()
         await interaction.response.send_message(
-            f"💀 **{member.display_name}**-н дүр нас барлаа.", ephemeral=True
+            f"💀 **{member.display_name}**-н дүрийн бүх мэдээлэл устгагдлаа. `/register` дахин хийх боломжтой.",
+            ephemeral=True
         )
 
     # ── /adminsetbalance ──────────────────────────────────────
@@ -279,6 +262,55 @@ class Admin(commands.Cog):
             await db.commit()
         await interaction.response.send_message(
             f"✅ **{member.display_name}**-н work/setjob/daily cooldown цэвэрлэгдлээ.", ephemeral=True
+        )
+
+
+    # ── /setvirtualchild ──────────────────────────────────────
+    @app_commands.command(name="setvirtualchild", description="[Admin] Хосод виртуал хүүхэд нэмэх")
+    @app_commands.describe(
+        parent1="Эцэг/Эх 1",
+        parent2="Эцэг/Эх 2",
+        name="Хүүхдийн нэр (хоосон бол санамсаргүй)",
+        gender="Хүйс (хоосон бол санамсаргүй)",
+    )
+    @app_commands.choices(gender=[
+        app_commands.Choice(name="Хөвгүүн", value="male"),
+        app_commands.Choice(name="Охин",    value="female"),
+    ])
+    @admin_only()
+    async def setvirtualchild(
+        self,
+        interaction: discord.Interaction,
+        parent1: discord.Member,
+        parent2: discord.Member,
+        name: str = "",
+        gender: str = "",
+    ):
+        from cogs.character import CHILD_NAMES
+        import random as _random
+
+        if parent1.id == parent2.id:
+            await interaction.response.send_message("Эцэг/эх хоёр ижил хүн байж болохгүй!", ephemeral=True)
+            return
+
+        sel_gender = gender if gender in ("male", "female") else _random.choice(["male", "female"])
+        sel_name   = name.strip() if name.strip() else _random.choice(CHILD_NAMES[sel_gender])
+        p1, p2     = (parent1.id, parent2.id) if parent1.id < parent2.id else (parent2.id, parent1.id)
+        birth_time = datetime.utcnow().isoformat()
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "INSERT INTO virtual_children "
+                "(guild_id,parent1_id,parent2_id,name,gender,birth_time,college,custodian_id) "
+                "VALUES (?,?,?,?,?,?,0,NULL)",
+                (interaction.guild_id, p1, p2, sel_name, sel_gender, birth_time),
+            )
+            await db.commit()
+
+        gender_mn = "Хөвгүүн" if sel_gender == "male" else "Охин"
+        await interaction.response.send_message(
+            f"👶 **{sel_name}** ({gender_mn}) — {parent1.display_name} & {parent2.display_name}-н хүүхдэд нэмэгдлээ!",
+            ephemeral=True,
         )
 
 
