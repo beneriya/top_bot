@@ -60,6 +60,12 @@ async def init_db():
         ]:
             try: await db.execute(col)
             except: pass
+        for col in [
+            "ALTER TABLE family ADD COLUMN married_at TEXT DEFAULT NULL",
+            "ALTER TABLE virtual_children ADD COLUMN last_support_age INTEGER DEFAULT 0",
+        ]:
+            try: await db.execute(col)
+            except: pass
 
         # ── shop ─────────────────────────────────────────────────
         await db.execute("""
@@ -130,6 +136,7 @@ async def init_db():
                 house_level       INTEGER DEFAULT 0,
                 children          TEXT    DEFAULT '[]',
                 last_child_prompt TEXT    DEFAULT NULL,
+                married_at        TEXT    DEFAULT NULL,
                 PRIMARY KEY (user_id, guild_id)
             )
         """)
@@ -222,6 +229,7 @@ async def init_db():
                 birth_time   TEXT NOT NULL,
                 college      INTEGER DEFAULT 0,
                 custodian_id INTEGER DEFAULT NULL
+                last_support_age  INTEGER DEFAULT 0,
             )
         """)
 

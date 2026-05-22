@@ -5,8 +5,8 @@ import aiosqlite
 import json
 from database import DB_PATH, get_user, update_balance, get_family
 from cogs.character import (get_char, can_marry_check, GENDER_MN, SEXUALITY_MN,
-                             calc_age_dt, CHILD_NAMES, CHILD_COST_PER_YEAR,
-                             CHILD_EARN_NO_COLLEGE, CHILD_EARN_COLLEGE, CHILD_COLLEGE_COST)
+                             calc_age_dt, CHILD_NAMES, CHILD_COLLEGE_COST,
+                             CHILD_COST_PER_YEAR, CHILD_EARN_NO_COLLEGE, CHILD_EARN_COLLEGE)
 from config import HOUSES, HOUSE_SELL_RATIO, HOUSE_UPGRADE_RATIO
 from datetime import datetime
 
@@ -110,14 +110,15 @@ class MarriageView(discord.ui.View):
                         "DELETE FROM inventory WHERE item_id=? AND user_id=? AND guild_id=?",
                         (self.ring_item_id, self.proposer.id, self.guild_id)
                     )
-                # Link spouses
+                # Link spouses + record marriage time
+                _now = datetime.utcnow().isoformat()
                 await db.execute(
-                    "UPDATE family SET spouse_id=? WHERE user_id=? AND guild_id=?",
-                    (self.target.id, self.proposer.id, self.guild_id)
+                    "UPDATE family SET spouse_id=?, married_at=? WHERE user_id=? AND guild_id=?",
+                    (self.target.id, _now, self.proposer.id, self.guild_id)
                 )
                 await db.execute(
-                    "UPDATE family SET spouse_id=? WHERE user_id=? AND guild_id=?",
-                    (self.proposer.id, self.target.id, self.guild_id)
+                    "UPDATE family SET spouse_id=?, married_at=? WHERE user_id=? AND guild_id=?",
+                    (self.proposer.id, _now, self.target.id, self.guild_id)
                 )
                 await db.commit()
 
@@ -303,6 +304,22 @@ class Family(commands.Cog):
         if member.bot:
             await interaction.response.send_message("❌ Bot-тай гэрлэх боломжгүй!", ephemeral=True)
             return
+        # Block marrying adopted relatives (parent, child, sibling)
+        my_fam     = await get_family(interaction.user.id, interaction.guild_id)
+        their_fam  = await get_family(member.id, interaction.guild_id)
+        my_kids    = json.loads(my_fam["children"] or "[]")
+        their_kids = json.loads(their_fam["children"] or "[]")
+        if (my_fam["parent_id"] == member.id          # target is my parent
+            or their_fam["parent_id"] == interaction.user.id  # I am their parent
+            or member.id in my_kids                   # target is my adopted child
+            or interaction.user.id in their_kids      # I am their adopted child
+            or (my_fam["parent_id"] and my_fam["parent_id"] == their_fam["parent_id"])  # same parent
+        ):
+            await interaction.response.send_message(
+                "Гэр бүлийн гишүүнтэй гэрлэх боломжгүй!",
+                ephemeral=True
+            )
+            return
 
         # Бөгж шалгах
         async with aiosqlite.connect(DB_PATH) as db:
@@ -487,21 +504,26 @@ class Family(commands.Cog):
             ch = interaction.guild.get_member(cid)
             adopted_lines.append(f"👤 {ch.mention if ch else f'ID:{cid}'} *(үрчлэгдсэн)*")
 
+        # Virtual children — always show, regardless of current marriage status
         virtual_lines = []
-        if fam["spouse_id"]:
-            vchildren = await get_virtual_children(interaction.guild_id, target.id, fam["spouse_id"])
-            for vc in vchildren:
-                vage   = calc_age_dt(vc["birth_time"])
-                emoji  = "👦" if vc["gender"] == "male" else "👧"
-                status = ""
-                if vage >= 32:
-                    status = " *(гарсан)*"
-                elif vage >= 16:
-                    clg = " 🎓" if vc["college"] else ""
-                    status = f" *(ажилтай{clg})*"
-                else:
-                    status = f" *({vage} нас)*"
-                virtual_lines.append(f"{emoji} **{vc['name']}**{status}")
+        async with aiosqlite.connect(DB_PATH) as _vc_db:
+            _vc_db.row_factory = aiosqlite.Row
+            _vc_cur = await _vc_db.execute(
+                "SELECT * FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
+                (interaction.guild_id, target.id, target.id)
+            )
+            all_vchildren = [dict(r) for r in await _vc_cur.fetchall()]
+        for vc in all_vchildren:
+            vage  = calc_age_dt(vc["birth_time"])
+            emoji = "👦" if vc["gender"] == "male" else "👧"
+            if vage >= 32:
+                status = " *(гарсан)*"
+            elif vage >= 16:
+                clg = " 🎓" if vc["college"] else ""
+                status = f" *(бие даасан{clg})*"
+            else:
+                status = f" *({vage} нас)*"
+            virtual_lines.append(f"{emoji} **{vc['name']}**{status}")
 
         all_children = adopted_lines + virtual_lines
         if all_children:
@@ -680,58 +702,53 @@ class Family(commands.Cog):
 
 
     # ── /payschool ────────────────────────────────────────────
-    @app_commands.command(name="payschool", description="Виртуал хүүхдийг коллежд сургах (500,000 ₮)")
+    @app_commands.command(name="payschool", description="Виртуал хүүхдийнхээ коллежийн төлбөр төлөх")
     async def payschool(self, interaction: discord.Interaction):
-        # Fetch all virtual children where user is either parent, regardless of spouse status
+        uid, gid = interaction.user.id, interaction.guild_id
+
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cur = await db.execute(
                 "SELECT * FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
-                (interaction.guild_id, interaction.user.id, interaction.user.id)
+                (gid, uid, uid)
             )
-            vchildren = [dict(r) for r in await cur.fetchall()]
+            children = [dict(r) for r in await cur.fetchall()]
 
-        eligible = [
-            c for c in vchildren
-            if not c["college"]
-            and calc_age_dt(c["birth_time"]) < 32
-            and (c["custodian_id"] is None or c["custodian_id"] == interaction.user.id)
-        ]
-        if not eligible:
+        if not children:
             await interaction.response.send_message(
-                "❌ Коллежд сургах боломжтой хүүхэд байхгүй байна!\n"
-                "(Хүүхэд байхгүй, эсвэл аль хэдийн суралцсан, эсвэл 32+ насны байна)",
-                ephemeral=True,
+                "Таньд виртуал хүүхэд байхгүй байна.", ephemeral=True
             )
             return
 
-        user = await get_user(interaction.user.id, interaction.guild_id)
+        eligible = [c for c in children if calc_age_dt(c["birth_time"]) >= 16 and not c["college"]]
+        if not eligible:
+            await interaction.response.send_message(
+                "Коллежид орох насанд (16+) хүрсэн хүүхэд байхгүй / аль хэдийн төгсөн.", ephemeral=True
+            )
+            return
+
+        user = await get_user(uid, gid)
         total_cost = CHILD_COLLEGE_COST * len(eligible)
         if user["balance"] < total_cost:
             await interaction.response.send_message(
-                f"❌ Мөнгө хүрэлцэхгүй!\n"
-                f"Хэрэгтэй: **{total_cost:,} ₮**  |  Таных: **{user['balance']:,} ₮**",
-                ephemeral=True,
+                f"Мөнгө хүрэлцэхгүй! Хэрэгтэй: **{total_cost:,} ₮**  | Таных: **{user['balance']:,} ₮**",
+                ephemeral=True
             )
             return
 
-        await update_balance(interaction.user.id, interaction.guild_id, -total_cost)
+        await update_balance(uid, gid, -total_cost)
         async with aiosqlite.connect(DB_PATH) as db:
             for c in eligible:
-                await db.execute("UPDATE virtual_children SET college=1 WHERE child_id=?", (c["child_id"],))
+                await db.execute(
+                    "UPDATE virtual_children SET college=1 WHERE child_id=?", (c["child_id"],)
+                )
             await db.commit()
 
         names = ", ".join(f"**{c['name']}**" for c in eligible)
-        embed = discord.Embed(
-            title="🎓 Коллеж төлбөр шилжүүлэгдлээ!",
-            description=(
-                f"{names} коллежд элслээ!\n\n"
-                f"Цалин нэмэгдэж **{CHILD_EARN_COLLEGE:,} ₮/жил** болно.\n"
-                f"💸 Зарцуулалт: **{total_cost:,} ₮**"
-            ),
-            color=discord.Color.gold(),
+        await interaction.response.send_message(
+            f"🎓 {names} коллежид орлоо!\n"
+            f"💸 **{total_cost:,} ₮** зарцуулагдлаа."
         )
-        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):

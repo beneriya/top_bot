@@ -11,7 +11,8 @@ from config import (
     MALE_DEATH_MIN, MALE_DEATH_MAX, FEMALE_DEATH_MIN, FEMALE_DEATH_MAX,
     MILESTONES, OWNER_ID,
     CHILD_COST_PER_YEAR, CHILD_EARN_NO_COLLEGE, CHILD_EARN_COLLEGE, CHILD_COLLEGE_COST,
-    CHILD_MAX_COUNT, CHILD_PROMPT_COOLDOWN_DAYS, CHILD_VOTE_EXPIRY_HOURS,
+    CHILD_MAX_COUNT, CHILD_PROMPT_GAME_YEARS, CHILD_VOTE_EXPIRY_HOURS,
+    CHILD_SUPPORT_RATE, CHILD_SUPPORT_MAX, CHILD_SUPPORT_MIN,
     BG_TASK_INTERVAL_MINUTES, WORK_COOLDOWN_MINUTES,
 )
 
@@ -485,6 +486,19 @@ class ChildVoteView(discord.ui.View):
                 return
 
             if row["p1_vote"] == 1 and row["p2_vote"] == 1:
+                # Verify both parents are still married to each other
+                p1_check = await db.execute(
+                    "SELECT spouse_id FROM family WHERE user_id=? AND guild_id=?",
+                    (self.p1_id, self.guild_id)
+                )
+                p1_row = await p1_check.fetchone()
+                if not p1_row or p1_row["spouse_id"] != self.p2_id:
+                    await db.execute("DELETE FROM child_votes WHERE vote_id=?", (self.vote_id,))
+                    await db.commit()
+                    await interaction.response.edit_message(
+                        content="Уучлаарай, гэрлэлт цуцлагдсан тул хүүхэд төрүүлэх боломжгүй.", embed=None, view=None
+                    )
+                    return
                 # Both agreed → create virtual child!
                 gender = random.choice(["male", "female"])
                 name   = random.choice(CHILD_NAMES[gender])
@@ -718,15 +732,65 @@ class Character(commands.Cog):
                             )
                             break
 
-                # 2. Married couple child prompts
+                # 1b. Virtual child support deduction (15% per game year per child)
+                vc_cur = await db.execute("SELECT * FROM virtual_children")
+                for vc in await vc_cur.fetchall():
+                    vc = dict(vc)
+                    vc_age = calc_age_dt(vc["birth_time"])
+                    last_s = vc.get("last_support_age") or 0
+                    if vc_age <= last_s or vc_age >= 16:
+                        continue
+                    # Child aged up: deduct from each parent
+                    years_passed = vc_age - last_s
+                    for pid in [vc["parent1_id"], vc["parent2_id"]]:
+                        try:
+                            p_row = await (await db.execute(
+                                "SELECT balance FROM users WHERE user_id=? AND guild_id=?",
+                                (pid, guild_id)
+                            )).fetchone()
+                            if p_row:
+                                cost = int(min(
+                                    max(p_row["balance"] * CHILD_SUPPORT_RATE, CHILD_SUPPORT_MIN),
+                                    CHILD_SUPPORT_MAX
+                                ) * years_passed)
+                                new_bal = max(0, p_row["balance"] - cost)
+                                await db.execute(
+                                    "UPDATE users SET balance=? WHERE user_id=? AND guild_id=?",
+                                    (new_bal, pid, guild_id)
+                                )
+                        except Exception:
+                            pass
+                    await db.execute(
+                        "UPDATE virtual_children SET last_support_age=? WHERE child_id=?",
+                        (vc_age, vc["child_id"])
+                    )
+                await db.commit()
+
+                # 2. Married couple child prompts (opposite-sex, 4 game years after marriage)
                 cur2 = await db.execute("""
-                    SELECT f.user_id AS p1, f.spouse_id AS p2, f.guild_id, f.last_child_prompt
+                    SELECT f.user_id AS p1, f.spouse_id AS p2, f.guild_id,
+                           f.last_child_prompt, f.married_at
                     FROM family f
                     WHERE f.spouse_id IS NOT NULL AND f.user_id < f.spouse_id
                 """)
                 couples = await cur2.fetchall()
                 for couple in couples:
                     p1, p2, guild_id = couple["p1"], couple["p2"], couple["guild_id"]
+
+                    # Only opposite-sex couples
+                    p1_char = await get_char(p1, guild_id)
+                    p2_char = await get_char(p2, guild_id)
+                    if p1_char and p2_char:
+                        if p1_char["gender"] == p2_char["gender"]:
+                            continue
+
+                    # Must be married at least CHILD_PROMPT_GAME_YEARS game years
+                    married_at = couple["married_at"]
+                    if not married_at:
+                        continue
+                    married_hours = (now - datetime.fromisoformat(married_at)).total_seconds() / 3600
+                    if married_hours < CHILD_PROMPT_GAME_YEARS * HOURS_PER_GAME_YEAR:
+                        continue
 
                     # Skip if pending vote exists
                     cur_v = await db.execute(
@@ -745,11 +809,11 @@ class Character(commands.Cog):
                     if cnt >= CHILD_MAX_COUNT:
                         continue
 
-                    # Check cooldown (CHILD_PROMPT_COOLDOWN_DAYS бодит хоног)
+                    # Cooldown: CHILD_PROMPT_GAME_YEARS game years since last prompt
                     lcp = couple["last_child_prompt"]
                     if lcp:
-                        elapsed = (now - datetime.fromisoformat(lcp)).total_seconds()
-                        if elapsed < CHILD_PROMPT_COOLDOWN_DAYS * 86_400:
+                        elapsed_h = (now - datetime.fromisoformat(lcp)).total_seconds() / 3600
+                        if elapsed_h < CHILD_PROMPT_GAME_YEARS * HOURS_PER_GAME_YEAR:
                             continue
 
                     # Create vote record

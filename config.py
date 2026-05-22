@@ -34,13 +34,20 @@ OWNER_ID               = 597327005696000020          # Бот эзэмшигчи
 #  VIRTUAL CHILDREN
 # ══════════════════════════════════════════════════════════════════
 
-CHILD_COST_PER_YEAR       = 5_000    # 16 нас хүртэл: эцэг/эхэд тусдаа зардал (₮/жил)
-CHILD_EARN_NO_COLLEGE     = 20_000   # 16–32 нас, коллежгүй: тусдаа орлого (₮/жил)
-CHILD_EARN_COLLEGE        = 80_000   # 16–32 нас, коллежтэй: тусдаа орлого (₮/жил)
+CHILD_SUPPORT_RATE        = 0.15     # 0–15 нас: эцэг/эхийн pocket-н 15%/жил (тус бүр)
+CHILD_SUPPORT_MAX         = 100_000  # Нэг жил дахь дээд зардал (₮)
+CHILD_SUPPORT_MIN         = 100      # Нэг жил дахь доод зардал (₮)
 CHILD_COLLEGE_COST        = 500_000  # Коллежд оруулах нэг удаагийн зардал (₮)
+CHILD_WORK_BONUS          = 0.10     # 16+ настай хүүхэдтэй үед ажлын орлогын нэмэгдэл
 CHILD_MAX_COUNT           = 4        # Нэг хос дээр нийт хүүхдийн тоо
-CHILD_PROMPT_COOLDOWN_DAYS = 2       # Хүүхэд авах санал хооронд хэдэн бодит хоног
+CHILD_PROMPT_GAME_YEARS   = 4        # Гэрлэснээс хойш хэдэн тоглоомын жилийн дараа санал
 CHILD_VOTE_EXPIRY_HOURS   = 24       # Санал хураалтын хугацааны дээд хязгаар (цаг)
+
+# Legacy (family.py process_child_economics ашиглахгүй болсон тул хэрэглэхгүй)
+CHILD_COST_PER_YEAR       = 5_000
+CHILD_EARN_NO_COLLEGE     = 20_000
+CHILD_EARN_COLLEGE        = 80_000
+CHILD_PROMPT_COOLDOWN_DAYS = 2
 
 # ══════════════════════════════════════════════════════════════════
 #  FAMILY / HOUSING

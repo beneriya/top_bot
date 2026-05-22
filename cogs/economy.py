@@ -8,6 +8,7 @@ import random
 import json
 from cogs.character import JOBS, get_char, calc_age
 from cogs.family import process_child_economics
+from config import CHILD_WORK_BONUS as _CHILD_WORK_BONUS
 from config import (
     WORK_COOLDOWN_MINUTES, DAILY_COOLDOWN_HOURS,
     DAILY_REWARD_MIN, DAILY_REWARD_MAX, WORK_MIN_AGE,
@@ -116,9 +117,26 @@ class Economy(commands.Cog):
         happiness = await _gh(uid, gid)
         h_mult = 0.5 + happiness * 0.025  # 50% at 0/20 → 100% at 20/20
 
+        # Check for adult virtual child work bonus
+        from cogs.character import calc_age_dt as _cadt
+        _child_bonus = 0.0
+        try:
+            async with aiosqlite.connect(DB_PATH) as _cdb:
+                _cdb.row_factory = aiosqlite.Row
+                _ccur = await _cdb.execute(
+                    "SELECT birth_time FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
+                    (gid, uid, uid)
+                )
+                for _crow in await _ccur.fetchall():
+                    if _cadt(_crow['birth_time']) >= 16:
+                        _child_bonus = _CHILD_WORK_BONUS
+                        break
+        except Exception:
+            pass
+
         # 6. Цалин тооцоолох + хүүхдийн эдийн засаг
         sal_min, sal_max = job["salary"]
-        earned   = int(random.randint(sal_min, sal_max) * h_mult)
+        earned   = int(random.randint(sal_min, sal_max) * h_mult * (1 + _child_bonus))
         work_msg = random.choice(job["messages"])
 
         async with aiosqlite.connect(DB_PATH) as db:
@@ -150,8 +168,14 @@ class Economy(commands.Cog):
         if child_delta != 0:
             sign = "-" if child_delta < 0 else "+"
             embed.add_field(
-                name="👶 Хүүхдийн " + ("зардал" if child_delta < 0 else "орлого"),
+                name="👶 Хүүхдийн зардал",
                 value=f"**{sign}{abs(child_delta):,} ₮**",
+                inline=True
+            )
+        if _child_bonus > 0:
+            embed.add_field(
+                name="👨‍👧 Хүүхэдтэй хамт",
+                value=f"+{_child_bonus:.0%} нэмэгдэл",
                 inline=True
             )
         embed.set_footer(text=f"TOP Bot  •  /work  •  30 минут тутамд")
