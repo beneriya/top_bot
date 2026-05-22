@@ -861,7 +861,7 @@ class Economy(commands.Cog):
         # Check programmer job
         from cogs.character import get_char
         char = await get_char(uid, gid)
-        if not char or char.get("job_id") != "programmer":
+        if not char or dict(char).get("job_id") != "programmer":
             await interaction.response.send_message(
                 "\U0001f4bb Хак команд зөвхөн **Програмист** мэргэжилтэй хүн ашиглах боломжтой!\n"
                 "`/setjob` болон `/courses` командаар програмчлалын курс аваад програмист болно уу.",
