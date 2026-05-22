@@ -245,13 +245,25 @@ class Economy(commands.Cog):
 
     # ── Дэлгүүр харах (категориор) ────────────────────────────
     @app_commands.command(name="shop", description="Дэлгүүрийн барааг харах  /shop gem · /shop alcohol · хоосон=бүгд")
-    @app_commands.describe(category="alcohol · gem · ring · vehicle · cigarette · vape ... шууд бичнэ үү")
-    async def shop(self, interaction: discord.Interaction, category: str = None):
+    @app_commands.describe(category="Категори сонгоно үү")
+    @app_commands.choices(category=[
+        app_commands.Choice(name="🍺 Архи",                value="alcohol"),
+        app_commands.Choice(name="🚬 Тамхи",              value="cigarette"),
+        app_commands.Choice(name="💨 Вэйп",                value="vape"),
+        app_commands.Choice(name="💍 Бөгж",               value="ring"),
+        app_commands.Choice(name="⌚ Аксессуар",           value="accessory"),
+        app_commands.Choice(name="💎 Үнэт чулуу",        value="gem"),
+        app_commands.Choice(name="🚗 Хөдлөх хөрөнгө",    value="vehicle"),
+        app_commands.Choice(name="🏠 Үл хөдлөх хөрөнгө", value="realestate"),
+        app_commands.Choice(name="⚔️ Тоглоом/Бусад",     value="other"),
+        app_commands.Choice(name="🍽️ Хоол/Идэш",         value="food"),
+    ])
+    async def shop(self, interaction: discord.Interaction, category: app_commands.Choice[str] = None):
         OTHER_TYPES = ("weapon", "armor", "heal", "ticket", "adoption")
 
-        # Keyword → canonical category
+        # Choice object → plain string value
         if category:
-            category = self.CATEGORY_ALIASES.get(category.lower().strip(), category.lower().strip())
+            category = category.value
 
         # ── Real-estate category — informational, not a shop item ──
         if category == "realestate":
@@ -899,4 +911,5 @@ class Economy(commands.Cog):
                 )
             await interaction.response.send_message(embed=embed)
 
-
+async def setup(bot):
+    await bot.add_cog(Economy(bot))
