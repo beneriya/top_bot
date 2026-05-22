@@ -536,14 +536,26 @@ class Character(commands.Cog):
                         continue
                     uid, gid = char["user_id"], char["guild_id"]
 
-                    # Get balance
-                    bal_row = await (await db.execute(
-                        "SELECT balance FROM users WHERE user_id=? AND guild_id=?", (uid, gid)
+                    # ── Нийт хөрөнгө тооцоолох ─────────────────────
+                    user_row = await (await db.execute(
+                        "SELECT balance, bank FROM users WHERE user_id=? AND guild_id=?", (uid, gid)
                     )).fetchone()
-                    balance = bal_row["balance"] if bal_row else 0
-                    inherit_pool = int(balance * 0.50)
+                    pocket   = (user_row["balance"] if user_row else 0) or 0
+                    bank_bal = (user_row["bank"]    if user_row else 0) or 0
 
-                    # Find family: spouse + adopted children
+                    # Inventory-н нийт үнэ
+                    inv_row = await (await db.execute("""
+                        SELECT COALESCE(SUM(s.price * i.quantity), 0) AS total
+                        FROM inventory i JOIN shop s ON i.item_id = s.item_id
+                        WHERE i.user_id=? AND i.guild_id=?
+                    """, (uid, gid))).fetchone()
+                    inv_total    = (inv_row["total"] if inv_row else 0) or 0
+
+                    total_assets = pocket + bank_bal + inv_total
+                    inherit_pool = int(total_assets * 0.60)   # 60% гэр бүлд
+                    bank_fee     = total_assets - inherit_pool # 40% банкны хураамж
+
+                    # ── Гэр бүлийн гишүүд ─────────────────────────
                     fam_row = await (await db.execute(
                         "SELECT spouse_id FROM family WHERE user_id=? AND guild_id=?", (uid, gid)
                     )).fetchone()
@@ -554,65 +566,100 @@ class Character(commands.Cog):
                         "SELECT user_id FROM family WHERE parent_id=? AND guild_id=?", (uid, gid)
                     )).fetchall()
                     family_ids += [r["user_id"] for r in adopted]
-                    family_ids = list(dict.fromkeys(family_ids))
+                    family_ids  = list(dict.fromkeys(family_ids))
 
-                    # Virtual children count
+                    # Виртуал хүүхдийн тоо (мессежд харуулна)
                     vc_row = await (await db.execute(
-                        "SELECT COUNT(*) AS cnt FROM virtual_children WHERE (parent1_id=? OR parent2_id=?) AND guild_id=?",
+                        "SELECT COUNT(*) AS cnt FROM virtual_children"
+                        " WHERE (parent1_id=? OR parent2_id=?) AND guild_id=?",
                         (uid, uid, gid)
                     )).fetchone()
-                    vc_count = vc_row["cnt"] if vc_row else 0
+                    vc_count = (vc_row["cnt"] if vc_row else 0) or 0
 
-                    # Distribute 50% inheritance to real family members
+                    # ── 60% гэр бүлийн гишүүдэд тэгш хуваах ──────
+                    share = 0
                     if family_ids and inherit_pool > 0:
                         share = inherit_pool // len(family_ids)
                         for fid in family_ids:
                             await db.execute(
-                                "UPDATE users SET balance=MIN(1000000000,balance+?) WHERE user_id=? AND guild_id=?",
+                                "UPDATE users SET balance=MIN(1000000000,balance+?)"
+                                " WHERE user_id=? AND guild_id=?",
                                 (share, fid, gid)
                             )
 
-                    # Mark notified before sending DMs
+                    # ── Нас барсан хүний өгөгдөл бүрэн цэвэрлэх ──
+                    # Мөнгө, банк → 0
                     await db.execute(
-                        "UPDATE character_info SET death_notified=1 WHERE user_id=? AND guild_id=?",
+                        "UPDATE users SET balance=0, bank=0 WHERE user_id=? AND guild_id=?",
                         (uid, gid)
+                    )
+                    # Inventory устгах
+                    await db.execute(
+                        "DELETE FROM inventory WHERE user_id=? AND guild_id=?", (uid, gid)
+                    )
+                    # RPG reset
+                    await db.execute(
+                        "UPDATE rpg SET hp=100,max_hp=100,attack=10,defense=5,"
+                        "weapon='Нударга',"
+                        "armor='Хувцас',kills=0"
+                        " WHERE user_id=? AND guild_id=?",
+                        (uid, gid)
+                    )
+                    # Гэр бүл: өөрийн мэдээлэл устгах, бусдын spouse_id цэвэрлэх
+                    await db.execute(
+                        "DELETE FROM family WHERE user_id=? AND guild_id=?", (uid, gid)
+                    )
+                    await db.execute(
+                        "UPDATE family SET spouse_id=NULL WHERE spouse_id=? AND guild_id=?",
+                        (uid, gid)
+                    )
+                    # Character устгах → /register-ээр шинэ дүр үүсгэх боломжтой
+                    await db.execute(
+                        "DELETE FROM character_info WHERE user_id=? AND guild_id=?", (uid, gid)
                     )
                     await db.commit()
 
-                    # DM the deceased
+                    # ── DM: нас барсан хүнд ───────────────────────
                     try:
-                        deceased = await self.bot.fetch_user(uid)
+                        deceased  = await self.bot.fetch_user(uid)
+                        fam_line  = (
+                            f"👨‍👩‍👧 Гэр бүлийн **{len(family_ids)}** гишүүн тус бүр **{share:,} ₮** авлаа.\n"
+                            if family_ids and share > 0
+                            else "Гэр бүл байхгүй тул хөрөнгө банкад шилжлээ.\n"
+                        )
                         embed_d = discord.Embed(
                             title="🪶 Таны дүр нас барлаа",
                             description=(
-                                f"Таны дүр **{char['death_age']} насандаа** нас барлаа.\n"
-                                + (
-                                    f"💰 Нийт хөрөнгийн 50% ({inherit_pool:,} ₮) гэр бүлд үлдлээ.\n"
-                                    if family_ids and inherit_pool > 0 else ""
-                                )
-                                + "`/register` командаар шинэ дүр үүсгэнэ үү."
+                                f"Таны дүр **{char['death_age']} насандаа** таалал төгслөө.\n\n"
+                                f"💼 **Нийт хөрөнгө:** {total_assets:,} ₮\n"
+                                f"┣ 💵 Pocket:    {pocket:,} ₮\n"
+                                f"┣ 🏦 Bank:      {bank_bal:,} ₮\n"
+                                f"┗ 🎒 Inventory: {inv_total:,} ₮\n\n"
+                                f"💚 **Гэр бүлд (60%):** {inherit_pool:,} ₮\n"
+                                f"{fam_line}"
+                                f"🏦 **Банкны хураамж (40%):** {bank_fee:,} ₮\n\n"
+                                f"*`/register` командаар шинэ дүр үүсгэнэ үү.*"
                             ),
-                            color=0x555555,
+                            color=0x2C2F33,
                         )
                         await deceased.send(embed=embed_d)
                     except Exception:
                         pass
 
-                    # DM family members
-                    if family_ids:
-                        share = (inherit_pool // len(family_ids)) if inherit_pool > 0 else 0
+                    # ── DM: гэр бүлийн гишүүдэд ──────────────────
+                    if family_ids and share > 0:
                         for fid in family_ids:
                             try:
-                                fmember = await self.bot.fetch_user(fid)
-                                vc_txt = f"\n👶 Виртуал хүүхэд: **{vc_count}**" if vc_count else ""
-                                money_txt = f"\n💰 Өв хөрөнгөөс **{share:,} ₮** таны дансанд орлоо." if share > 0 else ""
-                                embed_f = discord.Embed(
+                                fmember  = await self.bot.fetch_user(fid)
+                                vc_txt   = f"\n👶 Виртуал хүүхэд: **{vc_count}**" if vc_count else ""
+                                embed_f  = discord.Embed(
                                     title="🪶 Гэр бүлийн гишүүн таалал төгсөв",
                                     description=(
-                                        f"Таны гэр бүлийн нэг нь **{char['death_age']} насандаа** нас барлаа."
-                                        + money_txt + vc_txt
+                                        f"Таны гэр бүлийн нэг нь **{char['death_age']} насандаа** таалал төгслөө.\n"
+                                        f"💰 Өв хөрөнгөөс **{share:,} ₮** таны дансанд орлоо."
+                                        + vc_txt
                                     ),
-                                    color=0x555555,
+                                    color=0x2C2F33,
                                 )
                                 await fmember.send(embed=embed_f)
                             except Exception:
