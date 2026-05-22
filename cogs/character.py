@@ -9,7 +9,7 @@ from database import DB_PATH, get_user, update_balance
 from config import (
     HOURS_PER_GAME_YEAR,
     MALE_DEATH_MIN, MALE_DEATH_MAX, FEMALE_DEATH_MIN, FEMALE_DEATH_MAX,
-    MILESTONES,
+    MILESTONES, OWNER_ID,
     CHILD_COST_PER_YEAR, CHILD_EARN_NO_COLLEGE, CHILD_EARN_COLLEGE, CHILD_COLLEGE_COST,
     CHILD_MAX_COUNT, CHILD_PROMPT_COOLDOWN_DAYS, CHILD_VOTE_EXPIRY_HOURS,
     BG_TASK_INTERVAL_MINUTES, WORK_COOLDOWN_MINUTES,
@@ -665,7 +665,7 @@ class Character(commands.Cog):
                             except Exception:
                                 pass
 
-                # 1. Age milestone notifications
+                # 1. Age milestone notifications — зөвхөн owner-д DM илгээнэ
                 cur = await db.execute("SELECT * FROM character_info")
                 chars = await cur.fetchall()
                 for char in chars:
@@ -677,19 +677,20 @@ class Character(commands.Cog):
                     for ms in MILESTONES:
                         if age >= ms > last_ms:
                             try:
-                                user = await self.bot.fetch_user(char["user_id"])
+                                target_user = await self.bot.fetch_user(char["user_id"])
+                                owner       = await self.bot.fetch_user(OWNER_ID)
                                 embed = discord.Embed(
-                                    title=f"🎂 Тавтай мэндэлсэн өдрийн мэнд!",
+                                    title="🎂 Насны баяр",
                                     description=(
-                                        f"**{user.display_name}**, таны **{ms}-р** төрсөн өдрийн мэнд хүргэе! 🎉🎊\n"
-                                        f"Та тоглоомын ертөнцөд **{ms} настай** боллоо!"
+                                        f"**{target_user.display_name}** тоглоомын ертөнцөд "
+                                        f"**{ms} настай** боллоо!"
                                     ),
                                     color=0xFF69B4,
                                 )
                                 milestones_left = [m for m in MILESTONES if m > ms]
                                 if milestones_left:
-                                    embed.set_footer(text=f"Дараагийн тэмдэглэлт нас: {milestones_left[0]} 🎂")
-                                await user.send(embed=embed)
+                                    embed.set_footer(text=f"Дараагийн: {milestones_left[0]} нас")
+                                await owner.send(embed=embed)
                             except Exception:
                                 pass
                             await db.execute(

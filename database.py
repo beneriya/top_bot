@@ -395,81 +395,78 @@ async def init_db():
 
     # ── One-time data restore ─────────────────────────────────────
     await _restore_user_data()
-
+    await _fix_birth_time_v2()
 
 async def _restore_user_data():
-    """Нэг удаагийн өгөгдөл сэргээлт — Railway Volume руу шилжих үед."""
+    # One-time restore on first Railway Volume deploy.
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute("SELECT value FROM bot_config WHERE key='restore_v1'")
         if await cur.fetchone():
-            return  # Already restored
+            return
 
-        UID   = 597327005696000020
-        GID   = 1506606667754766356
+        UID = 597327005696000020
+        GID = 1506606667754766356
 
-        # ── users ──────────────────────────────────────────────────
-        await db.execute("""
-            INSERT OR REPLACE INTO users
-              (user_id, guild_id, balance, xp, level, messages,
-               last_work, last_daily,
-               sogto_level, mansuuralt_level, prison_until, prison_count,
-               bank, happiness)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (UID, GID, 85486018, 30, 2, 13,
-              '2026-05-21T11:35:17.627686', '2026-05-20T12:27:52.881800',
-              0, 27, None, 2,
-              0, 10))
+        await db.execute(
+            "INSERT OR REPLACE INTO users"
+            " (user_id, guild_id, balance, xp, level, messages,"
+            "  last_work, last_daily, sogto_level, mansuuralt_level,"
+            "  prison_until, prison_count, bank, happiness)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (UID, GID, 85486018, 30, 2, 13,
+             "2026-05-21T11:35:17.627686", "2026-05-20T12:27:52.881800",
+             0, 27, None, 2, 0, 10)
+        )
 
-        # ── inventory — item_id-г нэрээр хайна (shop re-seed давхцахаас зайлсхийх) ──
-        items_to_restore = {
-            'Прэмиум Архи':     19,   # Прэмиум Архи
-            'Прэмиум Вэйп':     14,   # Прэмиум Вэйп
-            'Онгоцны тасалбар':  1,   # Онгоцны тасалбар
-            'Дугуй':                                            1,   # Дугуй
-            'Спорт машин':            1,   # Спорт машин
-            'Эмчилгээ':                        97,   # Эмчилгээ
-            'Илд':                                                        1,   # Илд
-            'Хуяг':                                                  1,   # Хуяг
-            'Хөнгөн Пиво':            1,   # Хөнгөн Пиво
-            'Марлборо':                         1,   # Марлборо
-            'Бриллиант бөгж': 1, # Бриллиант бөгж
+        ITEMS = {
+            "Прэмиум Архи": 19,
+            "Прэмиум Вэйп": 14,
+            "Онгоцны тасалбар": 1,
+            "Дугуй": 1,
+            "Спорт машин": 1,
+            "Эмчилгээ": 97,
+            "Илд": 1,
+            "Хуяг": 1,
+            "Хөнгөн Пиво": 1,
+            "Марлборо": 1,
+            "Бриллиант бөгж": 1,
         }
-        for name, qty in items_to_restore.items():
-            cur2 = await db.execute("SELECT item_id FROM shop WHERE name=?", (name,))
-            row2 = await cur2.fetchone()
-            if row2:
-                await db.execute("""
-                    INSERT OR IGNORE INTO inventory (user_id, guild_id, item_id, quantity)
-                    VALUES (?,?,?,?)
-                """, (UID, GID, row2[0], qty))
+        for name, qty in ITEMS.items():
+            r = await (await db.execute(
+                "SELECT item_id FROM shop WHERE name=?", (name,)
+            )).fetchone()
+            if r:
+                await db.execute(
+                    "INSERT OR IGNORE INTO inventory (user_id, guild_id, item_id, quantity)"
+                    " VALUES (?,?,?,?)",
+                    (UID, GID, r[0], qty)
+                )
 
-        # ── rpg ────────────────────────────────────────────────────
-        await db.execute("""
-            INSERT OR REPLACE INTO rpg
-              (user_id, guild_id, hp, max_hp, attack, defense, weapon, armor, kills)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        """, (UID, GID, 100, 100, 10, 5,
-              'Нударга',   # Нударга
-              'Хувцас',          # Хувцас
-              0))
+        await db.execute(
+            "INSERT OR REPLACE INTO rpg"
+            " (user_id, guild_id, hp, max_hp, attack, defense, weapon, armor, kills)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            (UID, GID, 100, 100, 10, 5,
+             "Нударга",
+             "Хувцас", 0)
+        )
 
-        # ── character_info ─────────────────────────────────────────
-        await db.execute("""
-            INSERT OR REPLACE INTO character_info
-              (user_id, guild_id, gender, sexuality,
-               birth_time, death_age, job_id, last_milestone, last_setjob)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        """, (UID, GID, 'male', 'straight',
-              '2026-05-12T08:34:40.088255', 73, 'warehouse', 10,
-              '2026-05-21T11:35:00.134051'))
+        await db.execute(
+            "INSERT OR REPLACE INTO character_info"
+            " (user_id, guild_id, gender, sexuality,"
+            "  birth_time, death_age, job_id, last_milestone, last_setjob)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            (UID, GID, "male", "straight",
+             "2026-05-12T08:34:40.088255", 73, "warehouse", 10,
+             "2026-05-21T11:35:00.134051")
+        )
 
-        # ── done ───────────────────────────────────────────────────
         await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('restore_v1','1')")
         await db.commit()
-        print("[DB] Өгөгдөл амжилттай сэргээгдлээ.")  # Өгөгдөл амжилттай сэргээгдлээ.
+        print("[DB] User data restored.")
 
 
-# ── Helper functions ─────────────────────────────────────────────
+# Helper functions
 
 async def get_user(user_id: int, guild_id: int) -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -538,7 +535,6 @@ async def get_rpg(user_id: int, guild_id: int) -> dict:
 
 
 async def get_happiness(user_id: int, guild_id: int) -> int:
-    """Get current happiness level with time-based decay (3 per real hour)."""
     from datetime import datetime
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -562,3 +558,24 @@ async def get_happiness(user_id: int, guild_id: int) -> int:
         )
         await db.commit()
         return happiness
+
+
+async def _fix_birth_time_v2():
+    # Fix birth_time so age = 18 with 6h/year, reset milestone to 10
+    from datetime import datetime, timedelta
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT value FROM bot_config WHERE key='birth_fix_v2'")
+        if await cur.fetchone():
+            return
+        UID = 597327005696000020
+        GID = 1506606667754766356
+        # age 18 * 6h = 108 hours back from now
+        new_birth = (datetime.utcnow() - timedelta(hours=18 * 6)).isoformat()
+        await db.execute(
+            "UPDATE character_info SET birth_time=?, last_milestone=10"
+            " WHERE user_id=? AND guild_id=?",
+            (new_birth, UID, GID)
+        )
+        await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('birth_fix_v2','1')")
+        await db.commit()
+        print("[DB] birth_time fixed to age 18.")
