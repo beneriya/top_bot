@@ -393,6 +393,80 @@ async def init_db():
 
         await db.commit()
 
+    # ── One-time data restore ─────────────────────────────────────
+    await _restore_user_data()
+
+
+async def _restore_user_data():
+    """Нэг удаагийн өгөгдөл сэргээлт — Railway Volume руу шилжих үед."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT value FROM bot_config WHERE key='restore_v1'")
+        if await cur.fetchone():
+            return  # Already restored
+
+        UID   = 597327005696000020
+        GID   = 1506606667754766356
+
+        # ── users ──────────────────────────────────────────────────
+        await db.execute("""
+            INSERT OR REPLACE INTO users
+              (user_id, guild_id, balance, xp, level, messages,
+               last_work, last_daily,
+               sogto_level, mansuuralt_level, prison_until, prison_count,
+               bank, happiness)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (UID, GID, 85486018, 30, 2, 13,
+              '2026-05-21T11:35:17.627686', '2026-05-20T12:27:52.881800',
+              0, 27, None, 2,
+              0, 10))
+
+        # ── inventory — item_id-г нэрээр хайна (shop re-seed давхцахаас зайлсхийх) ──
+        items_to_restore = {
+            'Прэмиум Архи':     19,   # Прэмиум Архи
+            'Прэмиум Вэйп':     14,   # Прэмиум Вэйп
+            'Онгоцны тасалбар':  1,   # Онгоцны тасалбар
+            'Дугуй':                                            1,   # Дугуй
+            'Спорт машин':            1,   # Спорт машин
+            'Эмчилгээ':                        97,   # Эмчилгээ
+            'Илд':                                                        1,   # Илд
+            'Хуяг':                                                  1,   # Хуяг
+            'Хөнгөн Пиво':            1,   # Хөнгөн Пиво
+            'Марлборо':                         1,   # Марлборо
+            'Бриллиант бөгж': 1, # Бриллиант бөгж
+        }
+        for name, qty in items_to_restore.items():
+            cur2 = await db.execute("SELECT item_id FROM shop WHERE name=?", (name,))
+            row2 = await cur2.fetchone()
+            if row2:
+                await db.execute("""
+                    INSERT OR IGNORE INTO inventory (user_id, guild_id, item_id, quantity)
+                    VALUES (?,?,?,?)
+                """, (UID, GID, row2[0], qty))
+
+        # ── rpg ────────────────────────────────────────────────────
+        await db.execute("""
+            INSERT OR REPLACE INTO rpg
+              (user_id, guild_id, hp, max_hp, attack, defense, weapon, armor, kills)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        """, (UID, GID, 100, 100, 10, 5,
+              'Нударга',   # Нударга
+              'Хувцас',          # Хувцас
+              0))
+
+        # ── character_info ─────────────────────────────────────────
+        await db.execute("""
+            INSERT OR REPLACE INTO character_info
+              (user_id, guild_id, gender, sexuality,
+               birth_time, death_age, job_id, last_milestone, last_setjob)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        """, (UID, GID, 'male', 'straight',
+              '2026-05-12T08:34:40.088255', 73, 'warehouse', 10,
+              '2026-05-21T11:35:00.134051'))
+
+        # ── done ───────────────────────────────────────────────────
+        await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('restore_v1','1')")
+        await db.commit()
+        print("[DB] Өгөгдөл амжилттай сэргээгдлээ.")  # Өгөгдөл амжилттай сэргээгдлээ.
 
 
 # ── Helper functions ─────────────────────────────────────────────
