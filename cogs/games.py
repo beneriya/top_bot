@@ -566,10 +566,8 @@ class Games(commands.Cog):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute("""
-                SELECT r.user_id, r.kills,
-                       COALESCE(c.name, CAST(r.user_id AS TEXT)) AS display_name
+                SELECT r.user_id, r.kills
                 FROM rpg r
-                LEFT JOIN character_info c ON r.user_id=c.user_id AND r.guild_id=c.guild_id
                 WHERE r.guild_id=? AND r.kills > 0
                 ORDER BY r.kills DESC LIMIT 15
             """, (interaction.guild_id,))
@@ -604,7 +602,8 @@ class Games(commands.Cog):
         lines = []
         for i, row in enumerate(rows):
             rank  = i + 1
-            name  = str(row["display_name"])[:16]
+            member = interaction.guild.get_member(row["user_id"])
+            name   = (member.display_name if member else f"ID:{row['user_id']}")[:16]
             kills = row["kills"]
             bar   = kill_bar(kills, top_kills)
             pct   = int(kills / top_kills * 100)
