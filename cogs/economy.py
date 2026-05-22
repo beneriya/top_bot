@@ -44,6 +44,12 @@ class Economy(commands.Cog):
         embed.set_footer(text=f"TOP Bot  •  /balance")
         await interaction.response.send_message(embed=embed)
 
+        embed.add_field(name="💵 Pocket",  value=f"**{user['balance']:,} ₮**",    inline=True)
+        embed.add_field(name="🏦 Bank",    value=f"**{bank_bal:,} ₮**",           inline=True)
+        embed.add_field(name="💎 Нийт",    value=f"**{total:,} ₮**",              inline=True)
+        embed.set_footer(text=f"TOP Bot  •  /balance")
+        await interaction.response.send_message(embed=embed)
+
     # ── Ажил хийж мөнгө олох ──────────────────────────────────
     @app_commands.command(name="work", description="Ажил хийж төгрөг олох (30 минут тутамд)")
     async def work(self, interaction: discord.Interaction):
@@ -115,7 +121,8 @@ class Economy(commands.Cog):
         # 6. Happiness multiplier  (0→50%, 20→100%)
         from database import get_happiness as _gh
         happiness = await _gh(uid, gid)
-        h_mult = 0.5 + happiness * 0.025  # 50% at 0/20 → 100% at 20/20
+        h_pct  = happiness / 20.0                        # 0.0 – 1.0
+        h_mult = 0.5 + h_pct * 0.5                      # 50% at 0/20 → 100% at 20/20 (shown in UI)
 
         # Check for adult virtual child work bonus
         from cogs.character import calc_age_dt as _cadt
@@ -136,7 +143,9 @@ class Economy(commands.Cog):
 
         # 6. Цалин тооцоолох + хүүхдийн эдийн засаг
         sal_min, sal_max = job["salary"]
-        earned   = int(random.randint(sal_min, sal_max) * h_mult * (1 + _child_bonus))
+        # Happiness shifts the random floor upward: 19/20 → ~90% of sal_max guaranteed
+        eff_min = int(sal_min + (sal_max - sal_min) * h_pct * 0.6)
+        earned  = int(random.randint(eff_min, sal_max) * h_mult * (1 + _child_bonus))
         work_msg = random.choice(job["messages"])
 
         async with aiosqlite.connect(DB_PATH) as db:
@@ -1007,7 +1016,8 @@ class Economy(commands.Cog):
         uid, gid  = target.id, interaction.guild_id
         happiness = await get_happiness(uid, gid)
 
-        h_mult = 0.5 + happiness * 0.025  # 50% at 0 → 100% at 20
+        h_pct  = happiness / 20.0
+        h_mult = 0.5 + h_pct * 0.5       # 50% at 0 → 100% at 20
         h_bar  = "♥" * happiness + "♡" * (20 - happiness)
 
         if happiness >= 18:
@@ -1038,8 +1048,9 @@ class Economy(commands.Cog):
         embed.add_field(name="📊 Байдал",      value=status,              inline=True)
         embed.add_field(name="💼 Ажлын өгөөж", value=f"**{h_mult:.0%}**", inline=True)
         embed.set_thumbnail(url=target.display_avatar.url)
-        embed.set_footer(text="Хоол идэх: /eat  •  3 цаг тутамд -1 буурна  •  /shop food")
-        await interaction.response.send_message(embed=embed)
+        embed.set_footer(text="TOP Bot  •  /happiness  •  /eat хоол идэвэл түвшинийг бүхүүлээ")
+        await interaction.response.send_message(embed=embed, ephemeral=(member is None))
+
 
 async def setup(bot):
     await bot.add_cog(Economy(bot))
