@@ -385,7 +385,7 @@ class Games(commands.Cog):
 
         def hp_bar(cur, mx, length=10):
             filled = round(length * max(0, cur) / mx)
-            return "█" * filled + "░" * (length - filled)
+            return "▰" * filled + "▱" * (length - filled)
 
         # Зэвсэг/хуягын эдэлгээ
         durability_notes = []
@@ -598,7 +598,7 @@ class Games(commands.Cog):
 
         def kill_bar(kills, top, length=8):
             filled = round(length * kills / top) if top else 0
-            return "█" * filled + "░" * (length - filled)
+            return "▰" * filled + "▱" * (length - filled)
 
         top_kills = rows[0]["kills"]
         lines = []

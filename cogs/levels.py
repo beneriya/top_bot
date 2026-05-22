@@ -76,7 +76,7 @@ class Levels(commands.Cog):
         # ── XP progress bar ───────────────────────────────────────
         needed_xp = xp_for_level(user["level"])
         filled    = round((user["xp"] / needed_xp) * 14) if needed_xp else 0
-        xp_bar    = f"`{'█' * filled}{'░' * (14 - filled)}  {user['xp']}/{needed_xp}`"
+        xp_bar    = f"`{'▰' * filled}{'▱' * (14 - filled)}  {user['xp']}/{needed_xp}`"
 
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
@@ -178,7 +178,7 @@ class Levels(commands.Cog):
         # ── XP bar ─────────────────────────────────────────────────────
         needed_xp  = xp_for_level(user["level"])
         xp_filled  = round(12 * user["xp"] / needed_xp) if needed_xp else 0
-        xp_bar_str = "█" * xp_filled + "░" * (12 - xp_filled)
+        xp_bar_str = "▰" * xp_filled + "▱" * (12 - xp_filled)
 
         # ── Pocket/Bank totals ──────────────────────────────────────────
         async with aiosqlite.connect(DB_PATH) as db2:
@@ -305,7 +305,7 @@ class Levels(commands.Cog):
         def lbar(lv, xp, mx, length=8):
             score = lv * 1000 + xp
             filled = round(length * score / mx) if mx else 0
-            return "█" * filled + "░" * (length - filled)
+            return "▰" * filled + "▱" * (length - filled)
         lines = []
         for i, row in enumerate(rows):
             m  = interaction.guild.get_member(row["user_id"])

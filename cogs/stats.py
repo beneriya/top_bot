@@ -52,7 +52,7 @@ class Stats(commands.Cog):
         bank_bal  = user["bank"]      if "bank"      in user.keys() else 0
         happiness = user["happiness"] if "happiness" in user.keys() else 10
         h_filled = round(10 * happiness / 20)
-        h_bar    = "█" * h_filled + "░" * (10 - h_filled)
+        h_bar    = "▰" * h_filled + "▱" * (10 - h_filled)
         t_bar    = "⚡" * tension + "▫️" * max(0, 6 - tension)
         h_emoji  = "😊" if happiness >= 15 else ("😐" if happiness >= 8 else "😔")
         joined   = target.joined_at.strftime("%Y-%m-%d") if target.joined_at else "—"
@@ -130,7 +130,7 @@ class Stats(commands.Cog):
         medals  = ["🥇", "🥈", "🥉"]
         def mbar(n, mx, length=8):
             filled = round(length * n / mx) if mx else 0
-            return "█" * filled + "░" * (length - filled)
+            return "▰" * filled + "▱" * (length - filled)
         lines = []
         for i, row in enumerate(rows):
             m   = interaction.guild.get_member(row["user_id"])

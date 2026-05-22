@@ -26,7 +26,7 @@ class Economy(commands.Cog):
         bank_bal = user.get("bank", 0) or 0
         total = user['balance'] + bank_bal
         def _bar(a, b, length=10):
-            if a + b == 0: return "░" * length + "░" * length
+            if a + b == 0: return "▱" * length + "▱" * length
             fa = round(length * a / (a + b))
             fb = length - fa
             return "💵" * fa + "🏦" * fb
@@ -137,7 +137,7 @@ class Economy(commands.Cog):
 
         h_emoji = "😊" if happiness >= 15 else ("😐" if happiness >= 8 else "😔")
         h_filled = round(10 * happiness / 20)
-        h_bar = "█" * h_filled + "░" * (10 - h_filled)
+        h_bar = "▰" * h_filled + "▱" * (10 - h_filled)
         embed = discord.Embed(
             title=f"{job['emoji']}  Ажил хийлээ!",
             description=f'*"{work_msg}"*',
@@ -514,7 +514,7 @@ class Economy(commands.Cog):
         medals  = ["🥇", "🥈", "🥉"]
         def rbar(bal, mx, length=8):
             filled = round(length * bal / mx) if mx else 0
-            return "█" * filled + "░" * (length - filled)
+            return "▰" * filled + "▱" * (length - filled)
         lines = []
         for i, row in enumerate(rows):
             m   = interaction.guild.get_member(row["user_id"])
