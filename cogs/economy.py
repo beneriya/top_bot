@@ -111,15 +111,10 @@ class Economy(commands.Cog):
                 )
                 return
 
-        # 6. Happiness multiplier
+        # 6. Happiness multiplier  (0→50%, 20→100%)
         from database import get_happiness as _gh
         happiness = await _gh(uid, gid)
-        if happiness <= 0:
-            h_mult = 0.3
-        elif happiness < 10:
-            h_mult = 0.5 + happiness * 0.05
-        else:
-            h_mult = 1.0 + (happiness - 10) * 0.05
+        h_mult = 0.5 + happiness * 0.025  # 50% at 0/20 → 100% at 20/20
 
         # 6. Цалин тооцоолох + хүүхдийн эдийн засаг
         sal_min, sal_max = job["salary"]
@@ -336,6 +331,8 @@ class Economy(commands.Cog):
                     eff = f" *(+{item['effect_value']} согтолт)*"
                 elif item["effect_type"] == "mansuuralt":
                     eff = f" *(+{item['effect_value']} мансуурал)*"
+                elif item["effect_type"] == "happiness":
+                    eff = f" *(+{item['effect_value']} аз жаргал)*"
                 lines.append(
                     f"{item['emoji']} **{item['name']}** — `{item['price']:,} ₮`{eff}\n"
                     f"　ID: `{item['item_id']}` · {item['description']}"
@@ -646,16 +643,15 @@ class Economy(commands.Cog):
 
         happiness = await get_happiness(uid, gid)
         gain      = food["effect_value"]
-        new_hap   = happiness + gain
 
-        if new_hap > 20:
-            # Overeating — penalty
+        # Already at max 20 — overeating penalty
+        if happiness >= 20:
             user    = await get_user(uid, gid)
             penalty = int(user["balance"] * 0.10)
             async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute(
-                    "UPDATE users SET balance=MAX(0,balance-?), happiness=20, happiness_updated=? WHERE user_id=? AND guild_id=?",
-                    (penalty, datetime.utcnow().isoformat(), uid, gid)
+                    "UPDATE users SET balance=MAX(0,balance-?) WHERE user_id=? AND guild_id=?",
+                    (penalty, uid, gid)
                 )
                 # Still consume item
                 if food["quantity"] > 1:
@@ -664,16 +660,20 @@ class Economy(commands.Cog):
                     await db.execute("DELETE FROM inventory WHERE item_id=? AND user_id=? AND guild_id=?", (item_id,uid,gid))
                 await db.commit()
             embed = discord.Embed(
-                title="\U0001f974 Хэтрүүлэн идсэний улмаас эрүүл мэндэд хохирол учирлаа!",
+                title="🤢 Аз жаргал дүүрэн — эрүүл мэнд хохирлоо!",
                 description=(
-                    f"{food['emoji']} **{food['name']}** идэхэд аз жаргал 20-аас хэтэрлээ.\n"
-                    f"Эрүүл мэндийн суутгал: **-{penalty:,} ₮** (10%)\n"
-                    f"Аз жаргал: **20/20** (дээд хэмжээнд байна)"
+                    f"{food['emoji']} **{food['name']}** идэхэд аз жаргал аль хэдээн **20/20** байна.\n"
+                    f"Хэтрүүлэн идсэнийн улмаас эрүүл мэнд хохирлоо!\n"
+                    f"💸 Эрүүл мэндийн суутгал: **-{penalty:,} ₮** (10%)"
                 ),
-                color=discord.Color.orange()
+                color=discord.Color.red()
             )
             await interaction.response.send_message(embed=embed)
             return
+
+        # Cap at 20 without penalty
+        actual_gain = min(gain, 20 - happiness)
+        new_hap     = happiness + actual_gain
 
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
@@ -686,13 +686,17 @@ class Economy(commands.Cog):
                 await db.execute("DELETE FROM inventory WHERE item_id=? AND user_id=? AND guild_id=?", (item_id,uid,gid))
             await db.commit()
 
-        h_bar = "♥" * new_hap + "♡" * (20 - new_hap)
+        h_bar      = "♥" * new_hap + "♡" * (20 - new_hap)
+        capped_msg = (f"\n*(Дээд хэмжээнд хүрсэн тул +{actual_gain} л нэмэгдлээ)*"
+                      if actual_gain < gain else "")
         embed = discord.Embed(
             title=f"{food['emoji']} {food['name']} идлээ!",
-            description=f"Аз жаргал **+{gain}** нэмэгдлээ!",
+            description=f"Аз жаргал **+{actual_gain}** нэмэгдлээ!{capped_msg}",
             color=discord.Color.green()
         )
-        embed.add_field(name="\U0001f60a Аз жаргал", value=f"**{new_hap}/20**\n{h_bar}", inline=False)
+        embed.add_field(name="😊 Аз жаргал", value=f"**{new_hap}/20**\n{h_bar}", inline=False)
+        if new_hap == 20:
+            embed.set_footer(text="⚠️ Аз жаргал 20/20 дүүрэн! Дахин идвэл эрүүл мэнд хохирно.")
         await interaction.response.send_message(embed=embed)
 
     # ══════════════════════════════════════════════════════════
@@ -942,6 +946,51 @@ class Economy(commands.Cog):
                     color=discord.Color.orange()
                 )
             await interaction.response.send_message(embed=embed)
+
+
+    # ══════════════════════════════════════════════════════════
+    #  /happiness  — аз жаргалын түвшин харах
+    # ══════════════════════════════════════════════════════════
+    @app_commands.command(name="happiness", description="Аз жаргалын түвшин болон ажлын өгөөжийг харах")
+    @app_commands.describe(member="Өөр хэрэглэгчийн аз жаргал харах (хоосон = өөрийнх)")
+    async def happiness_cmd(self, interaction: discord.Interaction, member: discord.Member = None):
+        target    = member or interaction.user
+        uid, gid  = target.id, interaction.guild_id
+        happiness = await get_happiness(uid, gid)
+
+        h_mult = 0.5 + happiness * 0.025  # 50% at 0 → 100% at 20
+        h_bar  = "♥" * happiness + "♡" * (20 - happiness)
+
+        if happiness >= 18:
+            status = "🌟 Маш аз жаргалтай"
+            color  = discord.Color.gold()
+        elif happiness >= 13:
+            status = "😊 Аз жаргалтай"
+            color  = discord.Color.green()
+        elif happiness >= 8:
+            status = "😐 Хэвийн"
+            color  = 0x5865F2
+        elif happiness >= 4:
+            status = "😔 Гунигтай"
+            color  = discord.Color.orange()
+        else:
+            status = "😢 Маш гунигтай"
+            color  = discord.Color.red()
+
+        embed = discord.Embed(
+            title=f"😊 {target.display_name}-н аз жаргал",
+            color=color
+        )
+        embed.add_field(
+            name="❤️ Түвшин",
+            value=f"**{happiness}/20**\n{h_bar}",
+            inline=False
+        )
+        embed.add_field(name="📊 Байдал",      value=status,              inline=True)
+        embed.add_field(name="💼 Ажлын өгөөж", value=f"**{h_mult:.0%}**", inline=True)
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.set_footer(text="Хоол идэх: /eat  •  3 цаг тутамд -1 буурна  •  /shop food")
+        await interaction.response.send_message(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Economy(bot))
