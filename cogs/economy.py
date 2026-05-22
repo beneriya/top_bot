@@ -504,8 +504,12 @@ class Economy(commands.Cog):
             embed.description = "Inventory хоосон байна. /дэлгүүр-ээс зүйлс авна уу!"
         else:
             for item in items:
+                if item["item_type"] in ("weapon", "armor"):
+                    qty_label = f"эдэлгээ: {item['quantity']}"
+                else:
+                    qty_label = f"x{item['quantity']}"
                 embed.add_field(
-                    name=f"{item['emoji']} {item['name']} x{item['quantity']}",
+                    name=f"{item['emoji']} {item['name']} ({qty_label})",
                     value=f"ID: `{item['item_id']}`",
                     inline=True
                 )
