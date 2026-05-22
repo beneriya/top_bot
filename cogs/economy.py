@@ -258,12 +258,11 @@ class Economy(commands.Cog):
         app_commands.Choice(name="⚔️ Тоглоом/Бусад",     value="other"),
         app_commands.Choice(name="🍽️ Хоол/Идэш",         value="food"),
     ])
-    async def shop(self, interaction: discord.Interaction, category: app_commands.Choice[str] = None):
+    async def shop(self, interaction: discord.Interaction, category: str = None):
         OTHER_TYPES = ("weapon", "armor", "heal", "ticket", "adoption")
 
-        # Choice object → plain string value
-        if category:
-            category = category.value
+        # Category comes as plain string from choices decorator
+        # (no conversion needed)
 
         # ── Real-estate category — informational, not a shop item ──
         if category == "realestate":
