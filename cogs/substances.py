@@ -70,6 +70,47 @@ def prison_remaining(prison_until_str: str) -> timedelta | None:
     return diff if diff.total_seconds() > 0 else None
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ReleaseView — "Суллах" товч: хугацаа дуусвал хэрэглэгчийг чөлөөлнө
+# ─────────────────────────────────────────────────────────────────────────────
+class ReleaseView(discord.ui.View):
+    def __init__(self, user_id: int, guild_id: int, prison_until_str: str):
+        super().__init__(timeout=None)
+        self.user_id         = user_id
+        self.guild_id        = guild_id
+        self.prison_until_str = prison_until_str
+
+    @discord.ui.button(label="\U0001f513 Суллах", style=discord.ButtonStyle.success)
+    async def release_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("\u0422\u0430\u043d\u044b \u0442\u043e\u0432\u0447 \u0431\u0438\u0448!", ephemeral=True)
+            return
+        remaining = prison_remaining(self.prison_until_str)
+        if remaining:
+            mins = int(remaining.total_seconds() // 60)
+            secs = int(remaining.total_seconds() % 60)
+            await interaction.response.send_message(
+                f"\u23f3 \u04ae\u043b\u0434\u0441\u044d\u043d \u0445\u0443\u0433\u0430\u0446\u0430\u0430: **{mins}\u043c {secs}\u0441** \u0431\u0430\u0439\u043d\u0430, \u0434\u0430\u0445\u0438\u043d \u0445\u04af\u043b\u044d\u044d\u0440\u044d\u0435!",
+                ephemeral=True
+            )
+            return
+        # Time is up — clear prison
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE users SET prison_until=NULL, sogto_level=0 WHERE user_id=? AND guild_id=?",
+                (self.user_id, self.guild_id)
+            )
+            await db.commit()
+        button.disabled = True
+        button.label = "\u2705 \u0421\u0443\u043b\u043b\u0430\u0433\u0434\u043b\u0430\u0430"
+        freed_embed = discord.Embed(
+            title="\u2705  \u0421\u0443\u043b\u043b\u0430\u0433\u0434\u043b\u0430\u0430!",
+            description="\u0422\u0430 \u044d\u0440\u04af\u04af\u043b\u0436\u04af\u04af\u043b\u044d\u0445\u044d\u044d\u0441 \u0447\u04e9\u043b\u04e9\u04e9\u043b\u04e9\u0433\u0434\u043b\u043e\u043e! \u0426\u0430\u0430\u0448\u0434\u0430\u0430 \u0430\u043d\u0445\u0430\u0430\u0440\u0430\u043b\u0436 \u043d\u04af\u04af\u0440\u044d\u044d.",
+            color=0x00CC44
+        )
+        await interaction.response.edit_message(embed=freed_embed, view=self)
+
 class Substances(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -87,12 +128,18 @@ class Substances(commands.Cog):
         while not self.bot.is_closed():
             await asyncio.sleep(1800)
             try:
+                now_iso = datetime.utcnow().isoformat()
                 async with aiosqlite.connect(DB_PATH) as db:
                     await db.execute(
                         "UPDATE users SET sogto_level = MAX(0, sogto_level - 1) WHERE sogto_level > 0"
                     )
                     await db.execute(
                         "UPDATE users SET mansuuralt_level = MAX(0, mansuuralt_level - 1) WHERE mansuuralt_level > 0"
+                    )
+                    # Auto-release expired prison sentences
+                    await db.execute(
+                        "UPDATE users SET prison_until=NULL, sogto_level=0 WHERE prison_until IS NOT NULL AND prison_until <= ?",
+                        (now_iso,)
                     )
                     await db.commit()
             except Exception:
@@ -370,8 +417,9 @@ class Substances(commands.Cog):
             inline=False
         )
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
-        embed.set_footer(text="Шоронгоос эрт гарах боломжгүй — хугацаа дуустал хүлээнэ үү")
-        await interaction.response.send_message(embed=embed)
+        embed.set_footer(text="\u0425\u0443\u0433\u0430\u0446\u0430\u0430 \u0434\u0443\u0443\u0441\u0441\u0430\u043d \u0434\u0430\u0440\u0430\u0430 \"\U0001f513 \u0421\u0443\u043b\u043b\u0430\u0445\" \u0442\u043e\u0432\u0447\u0438\u0439\u0433 \u0434\u0430\u0440\u0430\u0430!")
+        view = ReleaseView(interaction.user.id, interaction.guild_id, prison_until)
+        await interaction.response.send_message(embed=embed, view=view)
 
     # ────────────────────────────────────────────────────────────
     #  /prisonlist  — одоо шоронд байгаа хүмүүсийн жагсаалт
