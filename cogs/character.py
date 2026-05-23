@@ -732,15 +732,15 @@ class Character(commands.Cog):
                             )
                             break
 
-                # 1b. Virtual child support deduction (15% per game year per child)
+                # 1b. Virtual child support (0-15 cost) + adult earnings (16+) per bg_task tick
                 vc_cur = await db.execute("SELECT * FROM virtual_children")
                 for vc in await vc_cur.fetchall():
-                    vc = dict(vc)
-                    vc_age = calc_age_dt(vc["birth_time"])
-                    last_s = vc.get("last_support_age") or 0
-                    if vc_age <= last_s or vc_age >= 16:
+                    vc       = dict(vc)
+                    vc_gid   = vc["guild_id"]          # Bug2 fix: use child's own guild_id
+                    vc_age   = calc_age_dt(vc["birth_time"])
+                    last_s   = vc.get("last_support_age") or 0
+                    if vc_age <= last_s or vc_age >= 32:
                         continue
-                    # Child aged up: deduct from each parent
                     years_passed = vc_age - last_s
                     for pid in [vc["parent1_id"], vc["parent2_id"]]:
                         if not pid:
@@ -748,18 +748,26 @@ class Character(commands.Cog):
                         try:
                             p_row = await (await db.execute(
                                 "SELECT balance FROM users WHERE user_id=? AND guild_id=?",
-                                (pid, guild_id)
+                                (pid, vc_gid)           # Bug2 fix: vc_gid not guild_id
                             )).fetchone()
-                            if p_row:
+                            if not p_row:
+                                continue
+                            if vc_age < 16:
+                                # 0-15: deduct support cost
                                 cost = int(min(
                                     max(p_row["balance"] * CHILD_SUPPORT_RATE, CHILD_SUPPORT_MIN),
                                     CHILD_SUPPORT_MAX
                                 ) * years_passed)
                                 new_bal = max(0, p_row["balance"] - cost)
-                                await db.execute(
-                                    "UPDATE users SET balance=? WHERE user_id=? AND guild_id=?",
-                                    (new_bal, pid, guild_id)
-                                )
+                            else:
+                                # 16+: Bug4 fix — add earnings in bg_task too
+                                rate    = CHILD_EARN_COLLEGE if vc.get("college") else CHILD_EARN_NO_COLLEGE
+                                earned  = int(rate * years_passed)
+                                new_bal = min(1_000_000_000, p_row["balance"] + earned)
+                            await db.execute(
+                                "UPDATE users SET balance=? WHERE user_id=? AND guild_id=?",
+                                (new_bal, pid, vc_gid)
+                            )
                         except Exception:
                             pass
                     await db.execute(

@@ -7,7 +7,7 @@ from database import DB_PATH, get_user, update_balance, get_family
 from cogs.character import (get_char, can_marry_check, GENDER_MN, SEXUALITY_MN,
                              calc_age_dt, CHILD_NAMES, CHILD_COLLEGE_COST,
                              CHILD_COST_PER_YEAR, CHILD_EARN_NO_COLLEGE, CHILD_EARN_COLLEGE)
-from config import HOUSES, HOUSE_SELL_RATIO, HOUSE_UPGRADE_RATIO
+from config import HOUSES, HOUSE_SELL_RATIO, HOUSE_UPGRADE_RATIO, HOURS_PER_GAME_YEAR
 from datetime import datetime
 
 
@@ -29,6 +29,7 @@ async def process_child_economics(user_id: int, guild_id: int, db) -> int:
     Calculate accumulated child costs/earnings since last check.
     Applies to virtual children where user is a custodial parent.
     Returns the net balance delta (can be negative for costs).
+    Handles age boundary: cost for <16, earnings for 16+, split properly.
     """
     db.row_factory = aiosqlite.Row
     cur = await db.execute("""
@@ -42,9 +43,9 @@ async def process_child_economics(user_id: int, guild_id: int, db) -> int:
     """, (user_id, guild_id, user_id, user_id, user_id))
     children = await cur.fetchall()
 
-    now   = datetime.utcnow()
-    delta = 0
-    MAX_YEARS = 30  # cap per check to avoid insane numbers
+    now       = datetime.utcnow()
+    delta     = 0
+    MAX_YEARS = 30  # cap per check
 
     for child in children:
         child_age = calc_age_dt(child["birth_time"])
@@ -52,21 +53,44 @@ async def process_child_economics(user_id: int, guild_id: int, db) -> int:
             continue
 
         lc = child["last_calc"]
-        if lc:
-            elapsed_h = min((now - datetime.fromisoformat(lc)).total_seconds() / 3600,
-                            MAX_YEARS * 12)
-        else:
-            elapsed_h = 0
+        if not lc:
+            # First time: just record timestamp, no charge yet
+            await db.execute("""
+                INSERT INTO child_calc (child_id, parent_id, last_calc)
+                VALUES (?,?,?)
+                ON CONFLICT(child_id, parent_id) DO UPDATE SET last_calc=excluded.last_calc
+            """, (child["child_id"], user_id, now.isoformat()))
+            continue
 
-        elapsed_years = elapsed_h / 12
+        elapsed_h = min(
+            (now - datetime.fromisoformat(lc)).total_seconds() / 3600,
+            MAX_YEARS * HOURS_PER_GAME_YEAR
+        )
+        elapsed_years = elapsed_h / HOURS_PER_GAME_YEAR
         if elapsed_years < 0.01:
             continue
 
-        if child_age < 16:
+        # Age at last_calc vs now — split cost/earn at age 16 boundary
+        birth_dt   = datetime.fromisoformat(child["birth_time"])
+        last_dt    = datetime.fromisoformat(lc)
+        age_at_lc  = (last_dt  - birth_dt).total_seconds() / 3600 / HOURS_PER_GAME_YEAR
+        age_at_now = (now       - birth_dt).total_seconds() / 3600 / HOURS_PER_GAME_YEAR
+
+        ADULT_AGE  = 16.0
+        rate_earn  = CHILD_EARN_COLLEGE if child["college"] else CHILD_EARN_NO_COLLEGE
+
+        if age_at_lc >= ADULT_AGE:
+            # Whole period: earning
+            delta += int(rate_earn * elapsed_years)
+        elif age_at_now < ADULT_AGE:
+            # Whole period: cost
             delta -= int(CHILD_COST_PER_YEAR * elapsed_years)
         else:
-            rate   = CHILD_EARN_COLLEGE if child["college"] else CHILD_EARN_NO_COLLEGE
-            delta += int(rate * elapsed_years)
+            # Split: cost until 16, earn after 16
+            cost_years = ADULT_AGE - age_at_lc
+            earn_years = age_at_now - ADULT_AGE
+            delta -= int(CHILD_COST_PER_YEAR * cost_years)
+            delta += int(rate_earn * earn_years)
 
         await db.execute("""
             INSERT INTO child_calc (child_id, parent_id, last_calc)
