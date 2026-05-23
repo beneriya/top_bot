@@ -654,7 +654,7 @@ class Economy(commands.Cog):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cur = await db.execute("""
-                SELECT SUM(s.price * i.quantity) as total_val
+                SELECT SUM(CASE WHEN s.item_type IN ('weapon','armor') THEN s.price ELSE s.price * i.quantity END) as total_val
                 FROM inventory i JOIN shop s ON i.item_id=s.item_id
                 WHERE i.user_id=? AND i.guild_id=?
             """, (uid, gid))
@@ -1050,6 +1050,165 @@ class Economy(commands.Cog):
         embed.set_thumbnail(url=target.display_avatar.url)
         embed.set_footer(text="TOP Bot  •  /happiness  •  /eat хоол идэвэл түвшинийг бүхүүлээ")
         await interaction.response.send_message(embed=embed, ephemeral=(member is None))
+
+
+    # ══════════════════════════════════════════════════════════
+    #  /overtime  — 2-hour cooldown, 2x salary, happiness -3
+    # ══════════════════════════════════════════════════════════
+    @app_commands.command(name="overtime", description="Илүү цагаар ажиллах — 2 цаг cooldown, 2x цалин, аз жаргал -3")
+    async def overtime(self, interaction: discord.Interaction):
+        uid, gid = interaction.user.id, interaction.guild_id
+        char = await get_char(uid, gid)
+        if not char:
+            await interaction.response.send_message("🎭 Эхлээд `/register` командаар дүр үүсгэнэ үү!", ephemeral=True)
+            return
+        age = calc_age(dict(char))
+        if age >= char["death_age"]:
+            await interaction.response.send_message("💀 Таны дүр нас барсан!", ephemeral=True)
+            return
+        if age < WORK_MIN_AGE:
+            await interaction.response.send_message(f"🚫 {WORK_MIN_AGE} наснаас ажилладаг!", ephemeral=True)
+            return
+        if not char["job_id"] or char["job_id"] not in JOBS:
+            await interaction.response.send_message("💼 Эхлээд `/setjob` командаар ажил сонгоно уу!", ephemeral=True)
+            return
+
+        now = datetime.utcnow()
+        user = await get_user(uid, gid)
+        last_ot = user.get("last_overtime")
+        if last_ot:
+            elapsed = (now - datetime.fromisoformat(last_ot)).total_seconds() / 60
+            if elapsed < 120:
+                rem = 120 - elapsed
+                await interaction.response.send_message(
+                    f"⏳ Overtime cooldown: **{int(rem)}м {int((rem%1)*60)}с** хүлээнэ үү!", ephemeral=True
+                )
+                return
+
+        job = JOBS[char["job_id"]]
+        from database import get_happiness as _gh
+        happiness = await _gh(uid, gid)
+        h_pct  = happiness / 20.0
+        h_mult = 0.5 + h_pct * 0.5
+        sal_min, sal_max = job["salary"]
+        eff_min = int(sal_min + (sal_max - sal_min) * h_pct * 0.6)
+        base    = random.randint(eff_min, sal_max)
+        earned  = int(base * h_mult * 2.0)   # 2x overtime bonus
+
+        # Happiness -3
+        new_hap = max(0, happiness - 3)
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE users SET last_overtime=?, balance=MIN(?,MAX(0,balance+?)), happiness=? WHERE user_id=? AND guild_id=?",
+                (now.isoformat(), BALANCE_CAP, earned, new_hap, uid, gid)
+            )
+            await db.commit()
+
+        work_msg = random.choice(job["messages"])
+        embed = discord.Embed(
+            title=f"{job['emoji']}  Илүү цагаар ажиллалаа!",
+            description=f'*"{work_msg}"*',
+            color=0xF4A460
+        )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.add_field(name="💰 Олсон",      value=f"**+{earned:,} ₮** (2x)",   inline=True)
+        embed.add_field(name="💼 Мэргэжил",   value=f"**{job['name_mn']}**",      inline=True)
+        embed.add_field(name="😓 Аз жаргал",  value=f"**-3** → {new_hap}/20",    inline=True)
+        embed.set_footer(text="TOP Bot  •  /overtime  •  2 цаг тутамд")
+        await interaction.response.send_message(embed=embed)
+
+    # ══════════════════════════════════════════════════════════
+    #  /invest  — lock money for 12h, earn 8% interest
+    # ══════════════════════════════════════════════════════════
+    @app_commands.command(name="invest", description="Мөнгөө хөрөнгө оруулалтад байршуулах (12 цаг, 8% ашиг)")
+    @app_commands.describe(amount="Хөрөнгө оруулах дүн (min 10,000 ₮)")
+    async def invest(self, interaction: discord.Interaction, amount: int):
+        uid, gid = interaction.user.id, interaction.guild_id
+        if amount < 10_000:
+            await interaction.response.send_message("❌ Хамгийн бага хөрөнгө оруулалт: **10,000 ₮**!", ephemeral=True)
+            return
+        if amount > 5_000_000:
+            await interaction.response.send_message("❌ Хамгийн их хөрөнгө оруулалт: **5,000,000 ₮**!", ephemeral=True)
+            return
+
+        user = await get_user(uid, gid)
+        if (user.get("invest_amount") or 0) > 0:
+            await interaction.response.send_message(
+                "📊 Аль хэдийн хөрөнгө оруулалт байна! `/collectinvest` командаар эхлээд авна уу.",
+                ephemeral=True
+            )
+            return
+        if user["balance"] < amount:
+            await interaction.response.send_message(
+                f"❌ Мөнгө хүрэлцэхгүй! Таных: **{user['balance']:,} ₮**", ephemeral=True
+            )
+            return
+
+        now = datetime.utcnow()
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE users SET balance=balance-?, invest_amount=?, invest_time=? WHERE user_id=? AND guild_id=?",
+                (amount, amount, now.isoformat(), uid, gid)
+            )
+            await db.commit()
+
+        interest = int(amount * 0.08)
+        ready_at = now + timedelta(hours=12)
+        embed = discord.Embed(
+            title="📈 Хөрөнгө оруулалт хийлээ!",
+            description=(
+                f"**{amount:,} ₮** 12 цагийн хугацаанд байршуулагдлаа.\n"
+                f"💰 Ашиг: **+{interest:,} ₮** (8%)\n"
+                f"💵 Нийт авах: **{amount+interest:,} ₮**\n"
+                f"⏰ Авах боломжтой: <t:{int(ready_at.timestamp())}:R>"
+            ),
+            color=0x2ECC71
+        )
+        embed.set_footer(text="/collectinvest командаар авна уу")
+        await interaction.response.send_message(embed=embed)
+
+    # ── /collectinvest ────────────────────────────────────────
+    @app_commands.command(name="collectinvest", description="Хөрөнгө оруулалтаа авах (12 цагийн дараа)")
+    async def collectinvest(self, interaction: discord.Interaction):
+        uid, gid = interaction.user.id, interaction.guild_id
+        user = await get_user(uid, gid)
+        invested = user.get("invest_amount") or 0
+        inv_time = user.get("invest_time")
+
+        if invested <= 0 or not inv_time:
+            await interaction.response.send_message("❌ Хөрөнгө оруулалт байхгүй байна! `/invest` командаар эхлүүл.", ephemeral=True)
+            return
+
+        now     = datetime.utcnow()
+        elapsed = (now - datetime.fromisoformat(inv_time)).total_seconds() / 3600
+        if elapsed < 12:
+            rem_h = int(12 - elapsed)
+            rem_m = int(((12 - elapsed) % 1) * 60)
+            await interaction.response.send_message(
+                f"⏳ Хугацаа дуусаагүй! **{rem_h}ц {rem_m}м** хүлээнэ үү.", ephemeral=True
+            )
+            return
+
+        interest = int(invested * 0.08)
+        total    = invested + interest
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE users SET balance=MIN(?,balance+?), invest_amount=0, invest_time=NULL WHERE user_id=? AND guild_id=?",
+                (BALANCE_CAP, total, uid, gid)
+            )
+            await db.commit()
+
+        embed = discord.Embed(
+            title="💰 Хөрөнгө оруулалт авлаа!",
+            description=(
+                f"🏦 Үндсэн: **{invested:,} ₮**\n"
+                f"📈 Ашиг (8%): **+{interest:,} ₮**\n"
+                f"💵 Нийт: **+{total:,} ₮**"
+            ),
+            color=0x27AE60
+        )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):

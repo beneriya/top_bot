@@ -579,7 +579,7 @@ class Character(commands.Cog):
 
                     # Inventory-н нийт үнэ
                     inv_row = await (await db.execute("""
-                        SELECT COALESCE(SUM(s.price * i.quantity), 0) AS total
+                        SELECT COALESCE(SUM(CASE WHEN s.item_type IN ('weapon','armor') THEN s.price ELSE s.price * i.quantity END), 0) AS total
                         FROM inventory i JOIN shop s ON i.item_id = s.item_id
                         WHERE i.user_id=? AND i.guild_id=?
                     """, (uid, gid))).fetchone()
