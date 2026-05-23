@@ -228,8 +228,8 @@ async def init_db():
                 gender       TEXT NOT NULL,
                 birth_time   TEXT NOT NULL,
                 college      INTEGER DEFAULT 0,
-                custodian_id INTEGER DEFAULT NULL
-                last_support_age  INTEGER DEFAULT 0,
+                custodian_id INTEGER DEFAULT NULL,
+                last_support_age  INTEGER DEFAULT 0
             )
         """)
 
