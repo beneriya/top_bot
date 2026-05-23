@@ -560,7 +560,7 @@ class Family(commands.Cog):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute("""
-                SELECT s.name, s.price, i.quantity
+                SELECT s.name, s.emoji, s.price, i.quantity
                 FROM inventory i
                 JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=? AND s.item_type='vehicle'
@@ -571,7 +571,8 @@ class Family(commands.Cog):
         if vehicles:
             shown = vehicles[:3]
             rest  = len(vehicles) - 3
-            v_lines = [f"🚗 **{v['name']}**  `{v['price']:,} ₮`" for v in shown]
+            # shop.emoji ашигладаг (яг таарах emoji)
+            v_lines = [f"{v['emoji']} **{v['name']}**  `{v['price']:,} ₮`" for v in shown]
             if rest > 0:
                 v_lines.append(f"*+ {rest} хөдлөх хөрөнгө...*")
             embed.add_field(

@@ -6,6 +6,7 @@ import asyncio
 import calendar
 from datetime import datetime, timedelta
 from database import DB_PATH, get_user, update_balance
+from cogs.character import get_char, calc_age
 
 MAX_LEVEL   = 30
 PRISON_MINS = 30
@@ -171,6 +172,14 @@ class Substances(commands.Cog):
             )
             return
 
+        # 18 насны хязгаар
+        _char = await get_char(interaction.user.id, interaction.guild_id)
+        if _char and calc_age(dict(_char)) < 18:
+            await interaction.response.send_message(
+                f"🔞 **18 хүрэхгүй** хүнд архи өгөхгүй!", ephemeral=True
+            )
+            return
+
         user    = await get_user(interaction.user.id, interaction.guild_id)
         current = user.get("sogto_level", 0)
 
@@ -269,6 +278,14 @@ class Substances(commands.Cog):
             return
         if inv_item["item_type"] not in ("cigarette", "vape"):
             await interaction.response.send_message("❌ Энэ тамхи эсвэл вэйп биш!", ephemeral=True)
+            return
+
+        # 18 насны хязгаар
+        _char2 = await get_char(interaction.user.id, interaction.guild_id)
+        if _char2 and calc_age(dict(_char2)) < 18:
+            await interaction.response.send_message(
+                "🔞 **18 хүрэхгүй** хүнд тамхи/вэйп өгөхгүй!", ephemeral=True
+            )
             return
 
         user    = await get_user(interaction.user.id, interaction.guild_id)

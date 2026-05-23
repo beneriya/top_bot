@@ -715,7 +715,7 @@ class Character(commands.Cog):
                                 embed = discord.Embed(
                                     title="🎂 Насны баяр",
                                     description=(
-                                        f"**{target_user.display_name}** тоглоомын ертөнцөд "
+                                        f"Таны дүр тоглоомын ертөнцөд "
                                         f"**{ms} настай** боллоо!"
                                     ),
                                     color=0xFF69B4,
@@ -777,12 +777,13 @@ class Character(commands.Cog):
                 for couple in couples:
                     p1, p2, guild_id = couple["p1"], couple["p2"], couple["guild_id"]
 
-                    # Only opposite-sex couples
+                    # Only opposite-sex couples (both must have registered chars)
                     p1_char = await get_char(p1, guild_id)
                     p2_char = await get_char(p2, guild_id)
-                    if p1_char and p2_char:
-                        if p1_char["gender"] == p2_char["gender"]:
-                            continue
+                    if not p1_char or not p2_char:
+                        continue
+                    if p1_char["gender"] == p2_char["gender"]:
+                        continue
 
                     # Must be married at least CHILD_PROMPT_GAME_YEARS game years
                     married_at = couple["married_at"]
@@ -873,6 +874,14 @@ class Character(commands.Cog):
     # ── /register ─────────────────────────────────────────────
     @app_commands.command(name="register", description="Дүр үүсгэж тоглоомыг эхлүүлэх")
     async def register(self, interaction: discord.Interaction):
+        acc_age = (datetime.utcnow() - interaction.user.created_at.replace(tzinfo=None)).days
+        if acc_age < 30:
+            await interaction.response.send_message(
+                f"❌ Discord акк таных **30 хоногтой байхгүй** байна!\n"
+                f"Таных акк: **{acc_age} хоногтой**. Дахин: **{30 - acc_age} хоног** хүлээрэй.",
+                ephemeral=True
+            )
+            return
         view = RegisterView()
         await interaction.response.send_message(embed=view._build_embed(), view=view, ephemeral=True)
 
@@ -1138,6 +1147,13 @@ class Character(commands.Cog):
                 "🎭 Эхлээд `/register` командаар дүр үүсгэнэ үү!", ephemeral=True
             )
             return
+        _enroll_age = calc_age(dict(char))
+        if _enroll_age < 16:
+            await interaction.response.send_message(
+                f"🚫 Та **{_enroll_age} настай** байна. 16 наснаас курст элсэж болно!", ephemeral=True
+            )
+            return
+
         if course not in COURSES:
             await interaction.response.send_message("❌ Тийм курс байхгүй!", ephemeral=True)
             return

@@ -7,7 +7,7 @@ from collections import Counter
 from database import DB_PATH, get_user, update_balance, get_rpg
 
 async def _update_game_stats(user_id: int, guild_id: int, bet: int, winnings: int):
-    """Морьитой тоглоомын статистик хадгалах."""
+    """Мөрийтэй тоглоомын статистик хадгалах."""
     async with aiosqlite.connect(DB_PATH) as db:
         if winnings > 0:
             await db.execute(

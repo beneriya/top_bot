@@ -16,6 +16,38 @@ def admin_only():
         return False
     return app_commands.check(predicate)
 
+async def _full_wipe(uid: int, gid: int, db):
+    """Хэрэглэгчийн бүх мэдээллийг database-с арилгах."""
+    # 1. character_info + courses
+    await db.execute("DELETE FROM character_info WHERE user_id=? AND guild_id=?", (uid, gid))
+    await db.execute("DELETE FROM user_courses   WHERE user_id=? AND guild_id=?", (uid, gid))
+    # 2. users row (balance, bank, level, xp, cooldowns …)
+    await db.execute("DELETE FROM users          WHERE user_id=? AND guild_id=?", (uid, gid))
+    # 3. inventory
+    await db.execute("DELETE FROM inventory      WHERE user_id=? AND guild_id=?", (uid, gid))
+    # 4. family row + clear spouse reference
+    await db.execute("UPDATE family SET spouse_id=NULL WHERE spouse_id=? AND guild_id=?", (uid, gid))
+    await db.execute("DELETE FROM family         WHERE user_id=? AND guild_id=?", (uid, gid))
+    # 5. rpg
+    await db.execute("DELETE FROM rpg            WHERE user_id=? AND guild_id=?", (uid, gid))
+    # 6. virtual children custody transfer → other parent keeps them
+    await db.execute("""
+        UPDATE virtual_children
+        SET custodian_id = CASE
+            WHEN parent1_id=? THEN parent2_id
+            ELSE parent1_id
+        END
+        WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)
+    """, (uid, gid, uid, uid))
+    # 7. child_calc + child_votes
+    await db.execute("DELETE FROM child_calc  WHERE parent_id=?",  (uid,))
+    await db.execute("""
+        DELETE FROM child_votes
+        WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)
+    """, (gid, uid, uid))
+    await db.commit()
+
+
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -121,22 +153,10 @@ class Admin(commands.Cog):
     @app_commands.describe(member="Хэрэглэгч")
     @admin_only()
     async def adminkill(self, interaction: discord.Interaction, member: discord.Member):
-        char = await get_char(member.id, interaction.guild_id)
-        if not char:
-            await interaction.response.send_message(f"❌ **{member.display_name}** дүр үүсгээгүй байна!", ephemeral=True)
-            return
         async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "DELETE FROM character_info WHERE user_id=? AND guild_id=?",
-                (member.id, interaction.guild_id)
-            )
-            await db.execute(
-                "DELETE FROM user_courses WHERE user_id=? AND guild_id=?",
-                (member.id, interaction.guild_id)
-            )
-            await db.commit()
+            await _full_wipe(member.id, interaction.guild_id, db)
         await interaction.response.send_message(
-            f"💀 **{member.display_name}**-н дүрийн бүх мэдээлэл устгагдлаа. `/register` дахин хийх боломжтой.",
+            f"💀 **{member.display_name}**-н бүх мэдээлэл (character, users, inventory, family, rpg) устгагдлаа.",
             ephemeral=True
         )
 
@@ -208,17 +228,9 @@ class Admin(commands.Cog):
     @admin_only()
     async def adminresetchar(self, interaction: discord.Interaction, member: discord.Member):
         async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "DELETE FROM character_info WHERE user_id=? AND guild_id=?",
-                (member.id, interaction.guild_id)
-            )
-            await db.execute(
-                "DELETE FROM user_courses WHERE user_id=? AND guild_id=?",
-                (member.id, interaction.guild_id)
-            )
-            await db.commit()
+            await _full_wipe(member.id, interaction.guild_id, db)
         await interaction.response.send_message(
-            f"✅ **{member.display_name}**-н дүрийн мэдээлэл цэвэрлэгдлээ. `/register` дахин хийх боломжтой.",
+            f"✅ **{member.display_name}**-н бүх мэдээлэл цэвэрлэгдлээ. `/register` дахин хийх боломжтой.",
             ephemeral=True
         )
 
@@ -291,6 +303,17 @@ class Admin(commands.Cog):
 
         if parent1.id == parent2.id:
             await interaction.response.send_message("Эцэг/эх хоёр ижил хүн байж болохгүй!", ephemeral=True)
+            return
+
+        # Хоёулаа гэрлэсэн байх ёстой (гэрлэлтийн нийцтэй байдал шалгах)
+        from database import get_family as _gf
+        fam1 = await _gf(parent1.id, interaction.guild_id)
+        fam2 = await _gf(parent2.id, interaction.guild_id)
+        if fam1.get("spouse_id") != parent2.id or fam2.get("spouse_id") != parent1.id:
+            await interaction.response.send_message(
+                f"❌ **{parent1.display_name}** болон **{parent2.display_name}** гэрлэсэн байх ёстой!",
+                ephemeral=True
+            )
             return
 
         sel_gender = gender if gender in ("male", "female") else _random.choice(["male", "female"])
