@@ -105,8 +105,8 @@ class Levels(commands.Cog):
 
             # Inventory value
             inv_cur = await db.execute("""
-                SELECT COALESCE(SUM(s.price * i.quantity),0) AS total_val,
-                       COALESCE(SUM(i.quantity),0)           AS total_qty
+                SELECT COALESCE(SUM(CASE WHEN s.item_type IN ('weapon','armor') THEN s.price ELSE s.price * i.quantity END),0) AS total_val,
+                       COALESCE(SUM(CASE WHEN s.item_type IN ('weapon','armor') THEN 1 ELSE i.quantity END),0) AS total_qty
                 FROM inventory i JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=?
             """, (target.id, interaction.guild_id))
