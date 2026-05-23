@@ -83,9 +83,9 @@ class Games(commands.Cog):
         self.bot = bot
 
     # ══════════════════════════════════════════════════════════
-    #  /slot  — 10 symbols (reduced 2-match probability)
+    #  /slot  — 10 symbols, big-bet scaling (500k+ = 2x)
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="slot", description="Slot machine тоглох")
+    @app_commands.command(name="slot", description="Slot machine тоглох — том бооцоонд өндөр хожил (500k+)")
     async def slot(self, interaction: discord.Interaction, bet: int):
         if bet < 100:
             await interaction.response.send_message("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
@@ -97,20 +97,28 @@ class Games(commands.Cog):
             )
             return
 
+        big_bet = bet >= 1_000_000
+
         # 10 symbols → lower 2-match probability vs old 7
         symbols = ["\U0001f352","\U0001f34b","\U0001f34a","\U0001f347","\U0001f353","\U0001f349","\U0001f351","\u2b50","\U0001f48e","7\ufe0f\u20e3"]
         weights = [22, 18, 15, 12, 10, 8, 5, 5, 3, 2]
         reels   = random.choices(symbols, weights=weights, k=3)
 
         if reels[0] == reels[1] == reels[2]:
-            mult     = {"\U0001f48e": 50, "7\ufe0f\u20e3": 30, "\u2b50": 10}.get(reels[0], 5)
-            winnings = bet * mult
-            result   = f"\U0001f389 **JACKPOT!** {mult}x = **+{winnings:,} \u20ae**"
-            color    = discord.Color.gold()
+            base_mult = {"\U0001f48e": 50, "7\ufe0f\u20e3": 30, "\u2b50": 10}.get(reels[0], 5)
+            # Big bet bonus: rare symbols same, base (5x) gets +3 → 8x
+            mult      = (base_mult + 3) if (big_bet and base_mult < 10) else base_mult
+            winnings  = bet * mult
+            bonus_note = " \U0001f525 **Том бооцоо +3x!**" if big_bet and base_mult < 10 else ""
+            result    = f"\U0001f389 **JACKPOT!** {mult}x = **+{winnings:,} \u20ae**{bonus_note}"
+            color     = discord.Color.gold()
         elif reels[0] == reels[1] or reels[1] == reels[2]:
-            winnings = int(bet * 1.5)
-            result   = f"\u2705 Хоёр ижил! **+{winnings:,} \u20ae**"
-            color    = discord.Color.green()
+            # Big bet: 2.0x net instead of 1.5x
+            match_mult = 2.0 if big_bet else 1.5
+            winnings   = int(bet * (match_mult - 1))
+            bonus_note = " \U0001f525 **Том бооцоо 2x!**" if big_bet else ""
+            result     = f"\u2705 Хоёр ижил! {match_mult}x **+{winnings:,} \u20ae**{bonus_note}"
+            color      = discord.Color.green()
         else:
             winnings = -bet
             result   = f"\u274c Таарсангүй! **-{bet:,} \u20ae**"
@@ -127,7 +135,7 @@ class Games(commands.Cog):
     # ══════════════════════════════════════════════════════════
     #  /coinflip  — nerfed to 1.7x (was 2x)
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="coinflip", description="Зоос шидэх — 50/50, 1.7x")
+    @app_commands.command(name="coinflip", description="Зоос шидэх — 50/50 | <500k=1.7x | 500k+=2x")
     @app_commands.describe(choice="Таны сонголт", bet="Бооцооны дүн")
     @app_commands.choices(choice=[
         app_commands.Choice(name="\U0001f985 Толгой (Heads)", value="heads"),
@@ -148,9 +156,13 @@ class Games(commands.Cog):
         labels = {"heads": "\U0001f985 Толгой (Heads)", "tails": "\U0001fa99 Сүүл (Tails)"}
 
         if result == choice:
-            winnings = int(bet * 0.70)
-            outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** (1.7x)"
-            color    = discord.Color.green()
+            if bet >= 1_000_000:
+                winnings = bet          # 2.0x net (profit = bet)
+                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** \U0001f525 **2x** (том бооцоо)"
+            else:
+                winnings = int(bet * 0.70)
+                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** (1.7x)"
+            color = discord.Color.green()
         else:
             winnings = -bet
             outcome  = f"\u274c Буруу! **-{bet:,} \u20ae**"
@@ -246,6 +258,7 @@ class Games(commands.Cog):
             )
             return
 
+        big_bet = bet >= 1_000_000
         spin = random.randint(0, 36)
         if spin == 0:
             spin_label = "\U0001f7e2 Ногоон (0)"
@@ -256,17 +269,19 @@ class Games(commands.Cog):
 
         won  = False
         mult = 1
-        if bet_type == "red"    and spin != 0 and spin in ROULETTE_RED:     won, mult = True, 1.7
-        elif bet_type == "black" and spin != 0 and spin not in ROULETTE_RED: won, mult = True, 1.7
-        elif bet_type == "odd"   and spin != 0 and spin % 2 == 1:           won, mult = True, 1.7
-        elif bet_type == "even"  and spin != 0 and spin % 2 == 0:           won, mult = True, 1.7
+        flat_mult = 2.0 if big_bet else 1.7
+        if bet_type == "red"    and spin != 0 and spin in ROULETTE_RED:     won, mult = True, flat_mult
+        elif bet_type == "black" and spin != 0 and spin not in ROULETTE_RED: won, mult = True, flat_mult
+        elif bet_type == "odd"   and spin != 0 and spin % 2 == 1:           won, mult = True, flat_mult
+        elif bet_type == "even"  and spin != 0 and spin % 2 == 0:           won, mult = True, flat_mult
         elif bet_type == "green" and spin == 0:                              won, mult = True, 25
         elif bet_type == "number" and spin == number:                        won, mult = True, 30
 
         if won:
-            winnings = int(bet * (mult - 1))
-            outcome  = f"\u2705 Хожлоо! **+{winnings:,} \u20ae** ({mult}x)"
-            color    = discord.Color.green()
+            winnings   = int(bet * (mult - 1))
+            bonus_note = " 🔥 **Том бооцоо 2x!**" if big_bet and mult == 2.0 else ""
+            outcome    = f"\u2705 Хожлоо! **+{winnings:,} \u20ae** ({mult}x){bonus_note}"
+            color      = discord.Color.green()
         else:
             winnings = -bet
             outcome  = f"\u274c Хожигдлоо! **-{bet:,} \u20ae**"
