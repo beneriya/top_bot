@@ -380,5 +380,33 @@ class Admin(commands.Cog):
         )
 
 
+    # ── /adminremovechild ─────────────────────────────────────
+    @app_commands.command(name="adminremovechild", description="[Admin] Виртуал хүүхдийг устгах (child_id)")
+    @app_commands.describe(child_id="Устгах хүүхдийн ID (/family командаас харна)")
+    @admin_only()
+    async def adminremovechild(self, interaction: discord.Interaction, child_id: int):
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                "SELECT * FROM virtual_children WHERE child_id=? AND guild_id=?",
+                (child_id, interaction.guild_id)
+            )
+            child = await cur.fetchone()
+            if not child:
+                await interaction.response.send_message(
+                    f"❌ **{child_id}** ID-тай виртуал хүүхэд энэ серверт байхгүй!", ephemeral=True
+                )
+                return
+            await db.execute("DELETE FROM virtual_children WHERE child_id=?", (child_id,))
+            await db.execute("DELETE FROM child_calc WHERE child_id=?",       (child_id,))
+            await db.commit()
+
+        gender_mn = "хүү" if child["gender"] == "male" else "охин"
+        await interaction.response.send_message(
+            f"🗑️ **{child['name']}** ({gender_mn}, ID:{child_id}) виртуал хүүхэд устгагдлаа.",
+            ephemeral=True
+        )
+
+
 async def setup(bot):
     await bot.add_cog(Admin(bot))

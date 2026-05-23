@@ -523,7 +523,7 @@ class Family(commands.Cog):
                 status = f" *(бие даасан{clg})*"
             else:
                 status = f" *({vage} нас)*"
-            virtual_lines.append(f"{emoji} **{vc['name']}**{status}")
+            virtual_lines.append(f"{emoji} **{vc['name']}**{status} `(ID:{vc['child_id']})`")
 
         all_children = adopted_lines + virtual_lines
         if all_children:
