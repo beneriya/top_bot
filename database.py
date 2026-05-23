@@ -57,6 +57,9 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN rob_cooldown TEXT DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN hack_cooldown TEXT DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN prison_reason TEXT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN invest_amount INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN invest_time TEXT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN last_overtime TEXT DEFAULT NULL",
         ]:
             try: await db.execute(col)
             except: pass
@@ -66,6 +69,8 @@ async def init_db():
         ]:
             try: await db.execute(col)
             except: pass
+        # Migration-уудыг шууд commit — дараагийн алдаанаас хамааралгүй хадгалагдана
+        await db.commit()
 
         # ── shop ─────────────────────────────────────────────────
         await db.execute("""
