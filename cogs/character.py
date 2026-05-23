@@ -743,6 +743,8 @@ class Character(commands.Cog):
                     # Child aged up: deduct from each parent
                     years_passed = vc_age - last_s
                     for pid in [vc["parent1_id"], vc["parent2_id"]]:
+                        if not pid:
+                            continue
                         try:
                             p_row = await (await db.execute(
                                 "SELECT balance FROM users WHERE user_id=? AND guild_id=?",

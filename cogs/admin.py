@@ -337,5 +337,48 @@ class Admin(commands.Cog):
         )
 
 
+    # ── /admingivechild ───────────────────────────────────────
+    @app_commands.command(name="admingivechild", description="[Admin] Нэг гишүүнд виртуал хүүхэд оноох")
+    @app_commands.describe(
+        parent="Эцэг/Эх болох хэрэглэгч",
+        name="Хүүхдийн нэр (хоосон бол санамсаргүй)",
+        gender="Хүйс (хоосон бол санамсаргүй)",
+    )
+    @app_commands.choices(gender=[
+        app_commands.Choice(name="Хөвгүүн", value="male"),
+        app_commands.Choice(name="Охин",    value="female"),
+    ])
+    @admin_only()
+    async def admingivechild(
+        self,
+        interaction: discord.Interaction,
+        parent: discord.Member,
+        name: str = "",
+        gender: str = "",
+    ):
+        from cogs.character import CHILD_NAMES
+        import random as _random
+
+        sel_gender = gender if gender in ("male", "female") else _random.choice(["male", "female"])
+        sel_name   = name.strip() if name.strip() else _random.choice(CHILD_NAMES[sel_gender])
+        birth_time = datetime.utcnow().isoformat()
+
+        # parent2_id = 0 → ганц эцэг/эх (sentinel)
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "INSERT INTO virtual_children "
+                "(guild_id,parent1_id,parent2_id,name,gender,birth_time,college,custodian_id) "
+                "VALUES (?,?,0,?,?,?,0,NULL)",
+                (interaction.guild_id, parent.id, sel_name, sel_gender, birth_time),
+            )
+            await db.commit()
+
+        gender_mn = "Хөвгүүн" if sel_gender == "male" else "Охин"
+        await interaction.response.send_message(
+            f"👶 **{sel_name}** ({gender_mn}) — {parent.display_name}-д оноогдлоо!",
+            ephemeral=True,
+        )
+
+
 async def setup(bot):
     await bot.add_cog(Admin(bot))

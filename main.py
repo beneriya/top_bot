@@ -60,7 +60,7 @@ NO_CHAR_REQUIRED = {
     "deposit", "withdraw", "bank",
     # Admin commands
     "adminsetage", "adminsetgender", "adminsetsexuality", "adminsetjob",
-    "adminkill", "adminsetbalance", "adminaddbalance",
+    "adminkill", "adminsetbalance", "adminaddbalance", "admingivechild", "setvirtualchild",
     "adminsetlevel", "adminresetchar", "adminsetprison", "adminresetcooldown",
 }
 
