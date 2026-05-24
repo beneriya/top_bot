@@ -186,11 +186,19 @@ class Admin(commands.Cog):
     @manager_only()
     async def adminremovecourse(self, ctx: commands.Context, member: discord.Member, course: str):
         from cogs.character import COURSES
+        # Ажлын нэрээр оруулсан бол (programmer → programming) автоматаар хөрвүүлэх
         if course not in COURSES:
-            await ctx.send(
-                f"❌ Тийм курс байхгүй! Боломжит курсууд: `{'`, `'.join(COURSES.keys())}`", ephemeral=True
-            )
-            return
+            job_data = JOBS.get(course)
+            if job_data and job_data.get("course"):
+                course = job_data["course"]
+            else:
+                await ctx.send(
+                    f"❌ Тийм курс байхгүй!\n"
+                    f"Курсын нэр: `{'`, `'.join(COURSES.keys())}`\n"
+                    f"Ажлын нэр: `{'`, `'.join(j for j,d in JOBS.items() if d.get('course'))}`",
+                    ephemeral=True
+                )
+                return
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             row = await (await db.execute(
