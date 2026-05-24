@@ -370,6 +370,32 @@ class Games(commands.Cog):
     @commands.hybrid_command(name="battle", description="Дайстай тулалдах RPG тулаан")
     async def battle(self, ctx: commands.Context):
         rpg = await get_rpg(ctx.author.id, ctx.guild.id)
+
+        # Inventory-аас weapon/armor stat-ийг sync хийх
+        async with aiosqlite.connect(DB_PATH) as _db:
+            _db.row_factory = aiosqlite.Row
+            _w = await (await _db.execute(
+                "SELECT s.effect_value FROM inventory i JOIN shop s ON i.item_id=s.item_id "
+                "WHERE i.user_id=? AND i.guild_id=? AND s.item_type='weapon' AND i.quantity>0",
+                (ctx.author.id, ctx.guild.id)
+            )).fetchone()
+            _a = await (await _db.execute(
+                "SELECT s.effect_value FROM inventory i JOIN shop s ON i.item_id=s.item_id "
+                "WHERE i.user_id=? AND i.guild_id=? AND s.item_type='armor' AND i.quantity>0",
+                (ctx.author.id, ctx.guild.id)
+            )).fetchone()
+            new_atk = 10 + (_w["effect_value"] if _w else 0)
+            new_def = 5  + (_a["effect_value"] if _a else 0)
+            if new_atk != rpg["attack"] or new_def != rpg["defense"]:
+                await _db.execute(
+                    "UPDATE rpg SET attack=?, defense=? WHERE user_id=? AND guild_id=?",
+                    (new_atk, new_def, ctx.author.id, ctx.guild.id)
+                )
+                await _db.commit()
+                rpg = dict(rpg)
+                rpg["attack"] = new_atk
+                rpg["defense"] = new_def
+
         if rpg["hp"] <= 0:
             embed = discord.Embed(
                 title="🚫 HP дууссан!",
