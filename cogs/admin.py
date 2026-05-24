@@ -36,7 +36,7 @@ async def _full_wipe(uid: int, gid: int, db):
     # 6. virtual children — smart: delete if both parents dead, else transfer
     db.row_factory = aiosqlite.Row
     _children = await (await db.execute(
-        "SELECT id, parent1_id, parent2_id FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
+        "SELECT child_id, parent1_id, parent2_id FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
         (gid, uid, uid)
     )).fetchall()
     for _ch in _children:
@@ -48,14 +48,12 @@ async def _full_wipe(uid: int, gid: int, db):
             )).fetchone()
             _other_alive = _row is not None
         if _other_alive:
-            # Surviving parent takes custody
             await db.execute(
-                "UPDATE virtual_children SET custodian_id=? WHERE id=?", (_other, _ch["id"])
+                "UPDATE virtual_children SET custodian_id=? WHERE child_id=?", (_other, _ch["child_id"])
             )
         else:
-            # Both parents gone — delete child entirely
-            await db.execute("DELETE FROM virtual_children WHERE id=?", (_ch["id"],))
-            await db.execute("DELETE FROM child_calc WHERE child_id=?", (_ch["id"],))
+            await db.execute("DELETE FROM virtual_children WHERE child_id=?", (_ch["child_id"],))
+            await db.execute("DELETE FROM child_calc WHERE child_id=?", (_ch["child_id"],))
     # 7. child_calc (own entries) + child_votes
     await db.execute("DELETE FROM child_calc  WHERE parent_id=?",  (uid,))
     await db.execute("""

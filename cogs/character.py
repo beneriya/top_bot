@@ -318,7 +318,7 @@ class AgeModal(discord.ui.Modal, title="🎂 Насаа оруулна уу"):
             uid2, gid2 = interaction.user.id, interaction.guild_id
             # Шинэ амьдрал — өмнөх виртуал хүүхдийн холбоосыг цэвэрлэх
             _old_kids = await (await db.execute(
-                "SELECT id, parent1_id, parent2_id FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
+                "SELECT child_id, parent1_id, parent2_id FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
                 (gid2, uid2, uid2)
             )).fetchall()
             for _ck in _old_kids:
@@ -330,12 +330,10 @@ class AgeModal(discord.ui.Modal, title="🎂 Насаа оруулна уу"):
                     )).fetchone()
                     _alive = _r is not None
                 if _alive:
-                    # Нөгөө эцэг/эх амьд → тэд л харж чаддаг болно
-                    await db.execute("UPDATE virtual_children SET custodian_id=? WHERE id=?", (_other, _ck["id"]))
+                    await db.execute("UPDATE virtual_children SET custodian_id=? WHERE child_id=?", (_other, _ck["child_id"]))
                 else:
-                    # Хоёулаа нас барсан → хүүхдийг устгана
-                    await db.execute("DELETE FROM virtual_children WHERE id=?", (_ck["id"],))
-                    await db.execute("DELETE FROM child_calc WHERE child_id=?", (_ck["id"],))
+                    await db.execute("DELETE FROM virtual_children WHERE child_id=?", (_ck["child_id"],))
+                    await db.execute("DELETE FROM child_calc WHERE child_id=?", (_ck["child_id"],))
             await db.execute("DELETE FROM child_calc WHERE parent_id=?", (uid2,))
             # Шинэ дүр үүсгэх
             await db.execute(
