@@ -59,3 +59,11 @@ ene az jargal iin index work buyu ajliin buteemjid yagad noloo baga uzuuled bain
     15. bas 18 hureegui huuhded arhi bolon tamhi zarahgui baih ystoi
     16. adminkill command aar songoson duriin medeellig shuud ter chigeer ni database-s awch delete hii shuud ustga
     17. nas barsan duriig amiluulah command-g ustga hereggui iim command
+
+
+tuhain hunees sursan mergejil-g ni huraaj awdag bolgoh command admin-d nemj ug 
+/transfer command aar humuus hoorondoo max daa 50k tugrug shiljuuleh bolomjtoi bolgo tghgu bol bayn humuus mongo tsatsaad utgagui bolno. mon neg hunruu shiljuuleh time cooldown hiij tawi 1 tsagt 1 l udaa zowhon ter hun ruu guilgee hiine ghdee uur hun luu 1 tsaginha cd hargalzahgui shuud hiij bolno guilge tged ahin ter hun der ni 1 tsagiin cd unshine 
+adminresetcooldown command ni 3 han ymnii cd-g res hiij baina ene deer hack bolon rob-g orul
+enroll course higed ter ni profile-d ezemshsen mergejil-d orj irehgu baina, mon ugasa ter mergejliig sursan hernee orj irehgui baina. zaawal adminsetjob command aar mergejil songuulad baina
+shoron dotoroos command ajillad baina /work geh met arman ii server dotor yr ni hamag ym bolj butehgui baina. minii uurin anhnii server dotor buh ym ys zuitei zow ajillad baina 
+

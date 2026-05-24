@@ -91,27 +91,30 @@ class PrisonTree(app_commands.CommandTree):
         if not interaction.guild_id:
             return True
 
-        # Admin / Owner-г бүх шалгалтаас чөлөөлнө
         member = interaction.guild.get_member(interaction.user.id) if interaction.guild else None
-        is_admin = bool(member and (member.guild_permissions.administrator or interaction.user.id == OWNER_ID))
-        is_manager = is_admin or bool(member and any(r.name == MANAGER_ROLE_NAME for r in member.roles))
+        is_owner        = interaction.user.id == OWNER_ID
+        is_server_admin = bool(member and member.guild_permissions.administrator)
+        is_manager      = is_owner or bool(member and any(r.name == MANAGER_ROLE_NAME for r in member.roles))
 
-        if is_admin:
-            return True
-
-        # ── Permission gate ──────────────────────────────────────
+        # ── Permission gate (серверийн admin ч давж чадахгүй) ────
         if cmd_name in ADMIN_ONLY_COMMANDS:
-            await interaction.response.send_message(
-                "🚫 Энэ командыг зөвхөн **Admin** ашиглах боломжтой!",
-                ephemeral=True
-            )
-            return False
+            if not is_owner:
+                await interaction.response.send_message(
+                    "🚫 Энэ командыг зөвхөн бот **Owner** ашиглах боломжтой!",
+                    ephemeral=True
+                )
+                return False
+
         if cmd_name in MANAGER_COMMANDS and not is_manager:
             await interaction.response.send_message(
-                f"🚫 Энэ командыг зөвхөн **Admin** эсвэл **{MANAGER_ROLE_NAME}** role-той хүн ашиглах боломжтой!",
+                f"🚫 Энэ командыг зөвхөн **Owner** эсвэл **{MANAGER_ROLE_NAME}** role-той хүн ашиглах боломжтой!",
                 ephemeral=True
             )
             return False
+
+        # Prison / character шалгалтаас Owner болон серверийн adminг чөлөөлнө
+        if is_owner or is_server_admin:
+            return True
 
         try:
             async with aiosqlite.connect(DB_PATH) as db:
@@ -206,21 +209,23 @@ async def global_prefix_check(ctx: commands.Context):
     cmd_name = ctx.command.name if ctx.command else None
     if not cmd_name or not ctx.guild:
         return True
-    # Admin / Owner — no restriction
     member = ctx.guild.get_member(ctx.author.id)
-    is_admin = bool(member and (member.guild_permissions.administrator or ctx.author.id == OWNER_ID))
-    is_manager = is_admin or bool(member and any(r.name == MANAGER_ROLE_NAME for r in member.roles))
+    is_owner        = ctx.author.id == OWNER_ID
+    is_server_admin = bool(member and member.guild_permissions.administrator)
+    is_manager      = is_owner or bool(member and any(r.name == MANAGER_ROLE_NAME for r in member.roles))
 
-    if is_admin:
-        return True
-
-    # Permission gate for prefix commands
+    # Permission gate (серверийн admin ч давж чадахгүй)
     if cmd_name in ADMIN_ONLY_COMMANDS:
-        await ctx.send("🚫 Энэ командыг зөвхөн **Admin** ашиглах боломжтой!")
-        return False
+        if not is_owner:
+            await ctx.send("🚫 Энэ командыг зөвхөн бот **Owner** ашиглах боломжтой!")
+            return False
     if cmd_name in MANAGER_COMMANDS and not is_manager:
-        await ctx.send(f"🚫 Энэ командыг зөвхөн **Admin** эсвэл **{MANAGER_ROLE_NAME}** role-той хүн ашиглах боломжтой!")
+        await ctx.send(f"🚫 Энэ командыг зөвхөн **Owner** эсвэл **{MANAGER_ROLE_NAME}** role-той хүн ашиглах боломжтой!")
         return False
+
+    # Prison / character шалгалтаас Owner болон серверийн adminг чөлөөлнө
+    if is_owner or is_server_admin:
+        return True
     try:
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
@@ -295,7 +300,7 @@ async def main():
         await load_cogs()
         token = os.getenv("TOKEN")
         if not token:
-            logger.critical("TOKEN олдонгүй! .env файлаа шалгана үү.")
+            logger.critical("TOKEN oldongui! .env failaa shalgana uu.")
             return
         await bot.start(token)
 
