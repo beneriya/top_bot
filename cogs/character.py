@@ -438,21 +438,18 @@ class RegisterView(discord.ui.View):
 #  Autocomplete helpers
 # ══════════════════════════════════════════════════════════════
 async def _job_autocomplete(interaction: discord.Interaction, current: str):
-    char = await get_char(interaction.user.id, interaction.guild_id)
-    if not char:
-        return []
-    age       = calc_age(dict(char))
-    completed = await get_completed_courses(interaction.user.id, interaction.guild_id)
-    choices   = []
+    try:
+        char = await get_char(interaction.user.id, interaction.guild_id)
+        completed = await get_completed_courses(interaction.user.id, interaction.guild_id) if char else set()
+    except Exception:
+        char = None
+        completed = set()
+    choices = []
     for jid, jdata in JOBS.items():
-        if jdata["gender"] and jdata["gender"] != char["gender"]:
-            continue
-        if age < 16:
-            continue
         label = f"{jdata['emoji']} {jdata['name_mn']}"
         if jdata["course"] and jdata["course"] not in completed:
             label += "  🔒"
-        if current.lower() in jid or current.lower() in jdata["name_mn"].lower():
+        if not current or current.lower() in jid or current.lower() in jdata["name_mn"].lower():
             choices.append(app_commands.Choice(name=label[:100], value=jid))
     return choices[:25]
 
@@ -1162,7 +1159,7 @@ class Character(commands.Cog):
             title=f"{jdata['emoji']} Ажил сонгогдлоо!",
             description=(
                 f"**{jdata['name_mn']}** болж ажиллаж эхэллээ!\n\n"
-                f"💰 Цалин: **{sal_min:,} – {sal_max:,} ₮** (30 мин тутамд)\n"
+                f"💰 Цалин: **{sal_min:,} – {sal_max:,} ₮** (15 мин тутамд)\n"
                 f"⏳ Ажил солих боломжтой болох хүртэл: **30м 00с**"
             ),
             color=discord.Color.green(),
