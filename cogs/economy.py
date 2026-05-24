@@ -45,7 +45,7 @@ class Economy(commands.Cog):
         await ctx.send(embed=embed)
 
     # ── Ажил хийж мөнгө олох ──────────────────────────────────
-    @commands.hybrid_command(name="work", description="Ажил хийж төгрөг олох (30 минут тутамд)")
+    @commands.hybrid_command(name="work", description="Ажил хийж төгрөг олох (15 минут тутамд)")
     async def work(self, ctx: commands.Context):
         # 1. Дүр шалгах
         char = await get_char(ctx.author.id, ctx.guild.id)
@@ -181,7 +181,7 @@ class Economy(commands.Cog):
                 value=f"+{_child_bonus:.0%} нэмэгдэл",
                 inline=True
             )
-        embed.set_footer(text=f"TOP Bot  •  /work  •  30 минут тутамд")
+        embed.set_footer(text=f"TOP Bot  •  /work  •  15 минут тутамд")
         await ctx.send(embed=embed)
 
     # ── Өдөр тутмын урамшуулал ────────────────────────────────

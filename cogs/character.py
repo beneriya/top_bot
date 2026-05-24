@@ -470,6 +470,54 @@ async def _course_autocomplete(interaction: discord.Interaction, current: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Child Name Modal  (shown after both parents agree)
+# ══════════════════════════════════════════════════════════════
+class ChildNameModal(discord.ui.Modal, title="👶 Хүүхдийн нэр өгөх"):
+    child_name = discord.ui.TextInput(
+        label="Хүүхдийн нэр (хоосон үлдээвэл санамсаргүй нэр өгнө)",
+        placeholder="Жишээ: Болд, Наран ...",
+        required=False,
+        max_length=30,
+    )
+
+    def __init__(self, guild_id, p1, p2, gender, vote_id, other_parent_id, client):
+        super().__init__()
+        self.guild_id        = guild_id
+        self.p1              = p1
+        self.p2              = p2
+        self.gender          = gender
+        self.vote_id         = vote_id
+        self.other_parent_id = other_parent_id
+        self.client          = client
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw = self.child_name.value.strip()
+        name = raw if raw else random.choice(CHILD_NAMES[self.gender])
+        birth_time = datetime.utcnow().isoformat()
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "INSERT INTO virtual_children (guild_id,parent1_id,parent2_id,name,gender,birth_time,college,custodian_id) VALUES (?,?,?,?,?,?,0,NULL)",
+                (self.guild_id, self.p1, self.p2, name, self.gender, birth_time),
+            )
+            await db.execute("DELETE FROM child_votes WHERE vote_id=?", (self.vote_id,))
+            await db.commit()
+
+        gender_mn = "хүү" if self.gender == "male" else "охин"
+        embed = discord.Embed(
+            title=f"👶 {name} ертөнцэд мэндэллээ!",
+            description=f"Таны **{name}** ({gender_mn}) гэр бүлд нэмэгдлээ! 🎉",
+            color=discord.Color.pink(),
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        # Нөгөө эцэг/эхэд мэдэгдэл илгээх
+        try:
+            other = await self.client.fetch_user(self.other_parent_id)
+            await other.send(embed=embed)
+        except Exception:
+            pass
+
+
+# ══════════════════════════════════════════════════════════════
 #  Child vote View  (sent via DM when couple gets the prompt)
 # ══════════════════════════════════════════════════════════════
 class ChildVoteView(discord.ui.View):
@@ -521,31 +569,20 @@ class ChildVoteView(discord.ui.View):
                         content="Уучлаарай, гэрлэлт цуцлагдсан тул хүүхэд төрүүлэх боломжгүй.", embed=None, view=None
                     )
                     return
-                # Both agreed → create virtual child!
+                # Both agreed → ask for child name via modal
                 gender = random.choice(["male", "female"])
-                name   = random.choice(CHILD_NAMES[gender])
-                birth_time = datetime.utcnow().isoformat()
                 p1, p2 = (self.p1_id, self.p2_id) if self.p1_id < self.p2_id else (self.p2_id, self.p1_id)
-                await db.execute(
-                    "INSERT INTO virtual_children (guild_id,parent1_id,parent2_id,name,gender,birth_time,college,custodian_id) VALUES (?,?,?,?,?,?,0,NULL)",
-                    (self.guild_id, p1, p2, name, gender, birth_time),
+                modal = ChildNameModal(
+                    guild_id=self.guild_id,
+                    p1=p1, p2=p2,
+                    gender=gender,
+                    vote_id=self.vote_id,
+                    other_parent_id=self.p1_id if interaction.user.id == self.p2_id else self.p2_id,
+                    client=interaction.client,
                 )
-                await db.execute("DELETE FROM child_votes WHERE vote_id=?", (self.vote_id,))
-                await db.commit()
                 self.stop()
-
-                gender_mn = "хүү" if gender == "male" else "охин"
-                for parent_id in [self.p1_id, self.p2_id]:
-                    try:
-                        user = await interaction.client.fetch_user(parent_id)
-                        embed = discord.Embed(
-                            title=f"👶 {name} ертөнцэд мэндэллээ!",
-                            description=f"Таны **{name}** ({gender_mn}) гэр бүлд нэмэгдлээ! 🎉",
-                            color=discord.Color.pink(),
-                        )
-                        await user.send(embed=embed)
-                    except Exception:
-                        pass
+                await interaction.response.send_modal(modal)
+                return
 
                 await interaction.response.edit_message(content=f"👶 **{name}** ({gender_mn}) мэндэллээ!", embed=None, view=None)
             else:
@@ -1197,45 +1234,4 @@ class Character(commands.Cog):
             )
             return
 
-        cdata = COURSES[course]
-        user  = await get_user(ctx.author.id, ctx.guild.id)
-        if user["balance"] < cdata["cost"]:
-            await ctx.send(
-                f"❌ Мөнгө хүрэлцэхгүй!\n"
-                f"Хэрэгтэй: **{cdata['cost']:,} ₮**  |  Таных: **{user['balance']:,} ₮**",
-                ephemeral=True,
-            )
-            return
-
-        await update_balance(ctx.author.id, ctx.guild.id, -cdata["cost"])
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                """INSERT OR REPLACE INTO user_courses
-                       (user_id, guild_id, course_name, completed_at)
-                   VALUES (?,?,?,?)""",
-                (
-                    ctx.author.id, ctx.guild.id,
-                    course, datetime.utcnow().isoformat(),
-                ),
-            )
-            await db.commit()
-
-        unlocks_job = JOBS.get(cdata["unlocks"], {})
-        j_name  = unlocks_job.get("name_mn", cdata["unlocks"])
-        j_emoji = unlocks_job.get("emoji", "💼")
-
-        embed = discord.Embed(
-            title=f"{cdata['emoji']} Курс дууслаа!",
-            description=(
-                f"**{cdata['name_mn']}** амжилттай дууслаа!\n\n"
-                f"{j_emoji} **{j_name}** ажил нээгдлээ.\n"
-                f"`/setjob {cdata['unlocks']}` командаар ажил сонгоно уу."
-            ),
-            color=discord.Color.green(),
-        )
-        embed.add_field(name="💸 Зарцуулалт", value=f"{cdata['cost']:,} ₮", inline=True)
-        await ctx.send(embed=embed)
-
-
-async def setup(bot: commands.Bot):
-    await bot.add_cog(Character(bot))
+   
