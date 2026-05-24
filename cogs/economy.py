@@ -1215,7 +1215,8 @@ class Economy(commands.Cog):
                 await ctx.send("❌ Идэвхтэй хөрөнгө оруулалт байхгүй байна! `/invest` командаар эхлүүлнэ үү.", ephemeral=True)
                 return
 
-            ready_at = datetime.fromisoformat(row["invest_time"])
+            invest_at = datetime.fromisoformat(row["invest_time"])
+            ready_at  = invest_at + timedelta(hours=12)
             if now < ready_at:
                 remaining = ready_at - now
                 mins = int(remaining.total_seconds() // 60)
