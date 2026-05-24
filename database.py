@@ -652,13 +652,20 @@ async def get_rpg(user_id: int, guild_id: int) -> dict:
         row = await cur.fetchone()
         if not row:
             await db.execute(
-                "INSERT OR IGNORE INTO rpg (user_id, guild_id) VALUES (?,?)", (user_id, guild_id)
+                "INSERT OR REPLACE INTO rpg (user_id, guild_id) VALUES (?,?)", (user_id, guild_id)
             )
             await db.commit()
             cur = await db.execute(
                 "SELECT * FROM rpg WHERE user_id=? AND guild_id=?", (user_id, guild_id)
             )
             row = await cur.fetchone()
+        if not row:
+            # Fallback: default RPG stats хэрвээ DB оруулах амжилтгүй болсон бол
+            return {
+                "user_id": user_id, "guild_id": guild_id,
+                "hp": 100, "max_hp": 100, "attack": 10, "defense": 5,
+                "level": 1, "xp": 0, "wins": 0, "losses": 0,
+            }
         return dict(row)
 
 
