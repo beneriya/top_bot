@@ -1235,3 +1235,49 @@ class Character(commands.Cog):
             return
 
    
+        cdata = COURSES[course]
+        cost  = cdata["cost"]
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            row = await (await db.execute(
+                "SELECT balance FROM users WHERE user_id=? AND guild_id=?",
+                (ctx.author.id, ctx.guild.id)
+            )).fetchone()
+            pocket = (row["balance"] if row else 0) or 0
+
+            if pocket < cost:
+                await ctx.send(
+                    f"❌ **{cdata['name_mn']}** курс: **{cost:,} ₮** шаардагдана. "
+                    f"Таны pocket: **{pocket:,} ₮**",
+                    ephemeral=True
+                )
+                return
+
+            new_bal = pocket - cost
+            await db.execute(
+                "UPDATE users SET balance=? WHERE user_id=? AND guild_id=?",
+                (new_bal, ctx.author.id, ctx.guild.id)
+            )
+            await db.execute(
+                "INSERT OR IGNORE INTO user_courses (user_id, guild_id, course_name) VALUES (?,?,?)",
+                (ctx.author.id, ctx.guild.id, course)
+            )
+            await db.commit()
+
+        embed = discord.Embed(
+            title=f"{cdata['emoji']} Курс амжилттай дууслаа!",
+            description=(
+                f"**{cdata['name_mn']}**-д амжилттай элслээ!\n\n"
+                f"💸 Төлсөн: **{cost:,} ₮**\n"
+                f"💰 Үлдэгдэл: **{new_bal:,} ₮**\n\n"
+                f"💼 `/jobs` дээр шинэ мэргэжлийн ажлыг үзээрэй!"
+            ),
+            color=discord.Color.green()
+        )
+        embed.set_footer(text="TOP Bot  •  /enroll")
+        await ctx.send(embed=embed)
+
+
+async def setup(bot):
+    await bot.add_cog(Character(bot))
