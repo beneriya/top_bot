@@ -30,16 +30,30 @@ async def _full_wipe(uid: int, gid: int, db):
     await db.execute("DELETE FROM family         WHERE user_id=? AND guild_id=?", (uid, gid))
     # 5. rpg
     await db.execute("DELETE FROM rpg            WHERE user_id=? AND guild_id=?", (uid, gid))
-    # 6. virtual children custody transfer → other parent keeps them
-    await db.execute("""
-        UPDATE virtual_children
-        SET custodian_id = CASE
-            WHEN parent1_id=? THEN parent2_id
-            ELSE parent1_id
-        END
-        WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)
-    """, (uid, gid, uid, uid))
-    # 7. child_calc + child_votes
+    # 6. virtual children — smart: delete if both parents dead, else transfer
+    db.row_factory = aiosqlite.Row
+    _children = await (await db.execute(
+        "SELECT id, parent1_id, parent2_id FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
+        (gid, uid, uid)
+    )).fetchall()
+    for _ch in _children:
+        _other = _ch["parent2_id"] if _ch["parent1_id"] == uid else _ch["parent1_id"]
+        _other_alive = False
+        if _other and _other != 0:
+            _row = await (await db.execute(
+                "SELECT 1 FROM character_info WHERE user_id=? AND guild_id=?", (_other, gid)
+            )).fetchone()
+            _other_alive = _row is not None
+        if _other_alive:
+            # Surviving parent takes custody
+            await db.execute(
+                "UPDATE virtual_children SET custodian_id=? WHERE id=?", (_other, _ch["id"])
+            )
+        else:
+            # Both parents gone — delete child entirely
+            await db.execute("DELETE FROM virtual_children WHERE id=?", (_ch["id"],))
+            await db.execute("DELETE FROM child_calc WHERE child_id=?", (_ch["id"],))
+    # 7. child_calc (own entries) + child_votes
     await db.execute("DELETE FROM child_calc  WHERE parent_id=?",  (uid,))
     await db.execute("""
         DELETE FROM child_votes
@@ -398,7 +412,9 @@ class Admin(commands.Cog):
                 )
                 return
             await db.execute("DELETE FROM virtual_children WHERE child_id=?", (child_id,))
-            await db.execute("DELETE FROM child_calc WHERE child_id=?",       (child_id,))
+            await db.execute("DELETE FROM child_calc       WHERE child_id=?", (child_id,))
+            await db.execute("DELETE FROM child_votes      WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
+                             (interaction.guild_id, child["parent1_id"], child["parent2_id"]))
             await db.commit()
 
         gender_mn = "хүү" if child["gender"] == "male" else "охин"
