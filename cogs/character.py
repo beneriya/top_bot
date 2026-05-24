@@ -1056,7 +1056,23 @@ class Character(commands.Cog):
     # ── /setjob ───────────────────────────────────────────────
     @commands.hybrid_command(name="setjob", description="Ажлаа сонгох")
     @app_commands.describe(job="Ажлын нэр — жагсаалтаас сонгоно уу")
-    @app_commands.autocomplete(job=_job_autocomplete)
+    @app_commands.choices(job=[
+        app_commands.Choice(name="🏗️ Барилгийн туслах",      value="construction"),
+        app_commands.Choice(name="📦 Агуулхын ажилтан",       value="warehouse"),
+        app_commands.Choice(name="🛒 Тэрэгний зөөгч",         value="delivery"),
+        app_commands.Choice(name="🎨 Зураач",                 value="artist"),
+        app_commands.Choice(name="💁 Үйлчилгээний ажилтан",   value="service"),
+        app_commands.Choice(name="📞 Оператор",               value="operator"),
+        app_commands.Choice(name="💻 Програмист 🔒",          value="programmer"),
+        app_commands.Choice(name="👨‍🍳 Тогооч 🔒",             value="cook"),
+        app_commands.Choice(name="🚗 Жолооч 🔒",              value="driver"),
+        app_commands.Choice(name="👨‍⚕️ Эмч 🔒",               value="doctor"),
+        app_commands.Choice(name="📚 Багш 🔒",                value="teacher"),
+        app_commands.Choice(name="⚖️ Хуульч 🔒",              value="lawyer"),
+        app_commands.Choice(name="📊 Нягтлан бодогч 🔒",      value="accountant"),
+        app_commands.Choice(name="👔 Менежер 🔒",             value="manager"),
+        app_commands.Choice(name="⚙️ Инженер 🔒",             value="engineer"),
+    ])
     async def setjob(self, ctx: commands.Context, job: str):
         uid, gid = ctx.author.id, ctx.guild.id
         char = await get_char(uid, gid)
@@ -1256,9 +1272,10 @@ class Character(commands.Cog):
                 "UPDATE users SET balance=? WHERE user_id=? AND guild_id=?",
                 (new_bal, ctx.author.id, ctx.guild.id)
             )
+            from datetime import datetime as _dt
             await db.execute(
-                "INSERT OR IGNORE INTO user_courses (user_id, guild_id, course_name) VALUES (?,?,?)",
-                (ctx.author.id, ctx.guild.id, course)
+                "INSERT OR IGNORE INTO user_courses (user_id, guild_id, course_name, completed_at) VALUES (?,?,?,?)",
+                (ctx.author.id, ctx.guild.id, course, _dt.utcnow().isoformat())
             )
             # Курст тохирох ажлыг автоматаар тохируулна
             unlocked_job = None

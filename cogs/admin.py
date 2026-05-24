@@ -177,9 +177,10 @@ class Admin(commands.Cog):
             if job_val:
                 required_course = JOBS[job_val].get("course")
                 if required_course:
+                    from datetime import datetime as _dt
                     await db.execute(
-                        "INSERT OR IGNORE INTO user_courses (user_id, guild_id, course_name) VALUES (?,?,?)",
-                        (member.id, ctx.guild.id, required_course)
+                        "INSERT OR IGNORE INTO user_courses (user_id, guild_id, course_name, completed_at) VALUES (?,?,?,?)",
+                        (member.id, ctx.guild.id, required_course, _dt.utcnow().isoformat())
                     )
             await db.commit()
         job_name = JOBS[job]["name_mn"] if job != "none" else "Ажилгүй"
