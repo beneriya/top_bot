@@ -467,6 +467,35 @@ async def init_db():
     await _restore_user_data()
     await _fix_birth_time_v2()
 
+async def _fix_birth_time_v2():
+    """birth_date (хуучин) → birth_time (шинэ) руу нэг удаагийн migration."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT value FROM bot_config WHERE key='birth_time_v2'")
+        if await cur.fetchone():
+            return  # Аль хэдийн хийгдсэн
+        db.row_factory = aiosqlite.Row
+        from datetime import datetime, timedelta
+        from config import HOURS_PER_GAME_YEAR
+        rows = await (await db.execute(
+            "SELECT user_id, guild_id, birth_date FROM character_info "
+            "WHERE birth_time IS NULL AND birth_date IS NOT NULL"
+        )).fetchall()
+        for r in rows:
+            try:
+                from datetime import date
+                bd = date.fromisoformat(r["birth_date"])
+                age_days = (date.today() - bd).days
+                new_birth = datetime.utcnow() - timedelta(hours=age_days * HOURS_PER_GAME_YEAR)
+                await db.execute(
+                    "UPDATE character_info SET birth_time=? WHERE user_id=? AND guild_id=?",
+                    (new_birth.isoformat(), r["user_id"], r["guild_id"])
+                )
+            except Exception:
+                pass
+        await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('birth_time_v2','1')")
+        await db.commit()
+
+
 async def _restore_user_data():
     # One-time restore on first Railway Volume deploy.
     async with aiosqlite.connect(DB_PATH) as db:
@@ -585,6 +614,35 @@ async def get_family(user_id: int, guild_id: int) -> dict:
         return dict(row)
 
 
+async def get_user(user_id: int, guild_id: int) -> dict:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            "SELECT * FROM users WHERE user_id=? AND guild_id=?", (user_id, guild_id)
+        )
+        row = await cur.fetchone()
+        if not row:
+            await db.execute(
+                "INSERT OR IGNORE INTO users (user_id, guild_id) VALUES (?,?)", (user_id, guild_id)
+            )
+            await db.commit()
+            cur = await db.execute(
+                "SELECT * FROM users WHERE user_id=? AND guild_id=?", (user_id, guild_id)
+            )
+            row = await cur.fetchone()
+        return dict(row)
+
+
+async def update_balance(user_id: int, guild_id: int, amount: int):
+    await get_user(user_id, guild_id)
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE users SET balance=MIN(1000000000, MAX(0, balance+?)) WHERE user_id=? AND guild_id=?",
+            (amount, user_id, guild_id)
+        )
+        await db.commit()
+
+
 async def get_rpg(user_id: int, guild_id: int) -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -605,7 +663,6 @@ async def get_rpg(user_id: int, guild_id: int) -> dict:
 
 
 async def get_happiness(user_id: int, guild_id: int) -> int:
-    from datetime import datetime
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         row = await (await db.execute(
