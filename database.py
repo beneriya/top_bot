@@ -149,17 +149,53 @@ async def init_db():
         # ── rpg ──────────────────────────────────────────────────
         await db.execute("""
             CREATE TABLE IF NOT EXISTS rpg (
-                user_id  INTEGER PRIMARY KEY,
-                guild_id INTEGER,
+                user_id  INTEGER NOT NULL,
+                guild_id INTEGER NOT NULL,
                 hp       INTEGER DEFAULT 100,
                 max_hp   INTEGER DEFAULT 100,
                 attack   INTEGER DEFAULT 10,
                 defense  INTEGER DEFAULT 5,
                 weapon   TEXT    DEFAULT 'Нударга',
                 armor    TEXT    DEFAULT 'Хувцас',
-                kills    INTEGER DEFAULT 0
+                kills    INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, guild_id)
             )
         """)
+        # Migration: хуучин rpg таблиц user_id л PRIMARY KEY байсан бол засах
+        try:
+            info = await (await db.execute("PRAGMA table_info(rpg)")).fetchall()
+            cols = [r[1] for r in info]
+            # guild_id байхгүй эсвэл PRIMARY KEY буруу бол migrate хийнэ
+            test = await (await db.execute(
+                "INSERT OR FAIL INTO rpg (user_id, guild_id) VALUES (-1, -1)"
+            )).fetchone()
+            await db.execute("DELETE FROM rpg WHERE user_id=-1 AND guild_id=-1")
+        except Exception:
+            # Хуучин схем — migrate
+            try:
+                await db.execute("ALTER TABLE rpg RENAME TO rpg_old")
+                await db.execute("""
+                    CREATE TABLE rpg (
+                        user_id  INTEGER NOT NULL,
+                        guild_id INTEGER NOT NULL,
+                        hp       INTEGER DEFAULT 100,
+                        max_hp   INTEGER DEFAULT 100,
+                        attack   INTEGER DEFAULT 10,
+                        defense  INTEGER DEFAULT 5,
+                        weapon   TEXT    DEFAULT 'Нударга',
+                        armor    TEXT    DEFAULT 'Хувцас',
+                        kills    INTEGER DEFAULT 0,
+                        PRIMARY KEY (user_id, guild_id)
+                    )
+                """)
+                await db.execute(
+                    "INSERT OR IGNORE INTO rpg (user_id, guild_id, hp, max_hp, attack, defense, weapon, armor, kills) "
+                    "SELECT user_id, COALESCE(guild_id,0), hp, max_hp, attack, defense, weapon, armor, COALESCE(kills,0) FROM rpg_old"
+                )
+                await db.execute("DROP TABLE rpg_old")
+                await db.commit()
+            except Exception:
+                pass
         try:
             await db.execute("ALTER TABLE rpg ADD COLUMN kills INTEGER DEFAULT 0")
         except:
@@ -558,7 +594,7 @@ async def get_rpg(user_id: int, guild_id: int) -> dict:
         row = await cur.fetchone()
         if not row:
             await db.execute(
-                "INSERT INTO rpg (user_id, guild_id) VALUES (?,?)", (user_id, guild_id)
+                "INSERT OR IGNORE INTO rpg (user_id, guild_id) VALUES (?,?)", (user_id, guild_id)
             )
             await db.commit()
             cur = await db.execute(
@@ -572,44 +608,11 @@ async def get_happiness(user_id: int, guild_id: int) -> int:
     from datetime import datetime
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cur = await db.execute(
-            "SELECT happiness, happiness_updated FROM users WHERE user_id=? AND guild_id=?",
+        row = await (await db.execute(
+            "SELECT happiness, last_happiness_update FROM users WHERE user_id=? AND guild_id=?",
             (user_id, guild_id)
-        )
-        row = await cur.fetchone()
+        )).fetchone()
         if not row:
             return 10
-        happiness         = row["happiness"] if row["happiness"] is not None else 10
-        happiness_updated = row["happiness_updated"]
-        if happiness_updated:
-            last       = datetime.fromisoformat(happiness_updated)
-            hours_pass = (datetime.utcnow() - last).total_seconds() / 3600
-            decay      = int(hours_pass * 3)
-            happiness  = max(0, happiness - decay)
-        await db.execute(
-            "UPDATE users SET happiness=?, happiness_updated=? WHERE user_id=? AND guild_id=?",
-            (happiness, datetime.utcnow().isoformat(), user_id, guild_id)
-        )
-        await db.commit()
-        return happiness
-
-
-async def _fix_birth_time_v2():
-    # Fix birth_time so age = 18 with 6h/year, reset milestone to 10
-    from datetime import datetime, timedelta
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute("SELECT value FROM bot_config WHERE key='birth_fix_v2'")
-        if await cur.fetchone():
-            return
-        UID = 597327005696000020
-        GID = 1506606667754766356
-        # age 18 * 6h = 108 hours back from now
-        new_birth = (datetime.utcnow() - timedelta(hours=18 * 6)).isoformat()
-        await db.execute(
-            "UPDATE character_info SET birth_time=?, last_milestone=10"
-            " WHERE user_id=? AND guild_id=?",
-            (new_birth, UID, GID)
-        )
-        await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('birth_fix_v2','1')")
-        await db.commit()
-        print("[DB] birth_time fixed to age 18.")
+        val = row["happiness"] if row["happiness"] is not None else 10
+        return max(0, min(20, int(val)))

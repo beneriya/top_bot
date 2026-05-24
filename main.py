@@ -286,6 +286,10 @@ async def on_ready():
     logger.info(f"{len(bot.guilds)} серверт холбогдсон")
     logger.info(f"Tree дэх командын тоо: {len(bot.tree.get_commands())}")
     try:
+        # Глобал командуудыг цэвэрлэх (давхардлаас сэргийлнэ)
+        bot.tree.clear_commands(guild=None)
+        await bot.tree.sync()
+        # Guild-specific командуудыг sync хийх
         for guild in bot.guilds:
             bot.tree.copy_global_to(guild=guild)
             synced = await bot.tree.sync(guild=guild)
@@ -308,7 +312,7 @@ async def main():
         await load_cogs()
         token = os.getenv("TOKEN")
         if not token:
-            logger.critical("TOKEN oldongui! .env failaa shalgana uu.")
+            logger.critical("TOKEN олдонгуй!")
             return
         await bot.start(token)
 

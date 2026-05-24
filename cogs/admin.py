@@ -173,6 +173,14 @@ class Admin(commands.Cog):
                 "UPDATE character_info SET job_id=?, last_setjob=NULL WHERE user_id=? AND guild_id=?",
                 (job_val, member.id, ctx.guild.id)
             )
+            # Курс шаардсан ажил бол user_courses-д бас нэмэх
+            if job_val:
+                required_course = JOBS[job_val].get("course")
+                if required_course:
+                    await db.execute(
+                        "INSERT OR IGNORE INTO user_courses (user_id, guild_id, course_name) VALUES (?,?,?)",
+                        (member.id, ctx.guild.id, required_course)
+                    )
             await db.commit()
         job_name = JOBS[job]["name_mn"] if job != "none" else "Ажилгүй"
         await ctx.send(
@@ -201,36 +209,42 @@ class Admin(commands.Cog):
                 return
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
-            row = await (await db.execute(
+            # user_courses-д бичлэг байгаа эсэхийг шалгах
+            course_row = await (await db.execute(
                 "SELECT course_name FROM user_courses WHERE user_id=? AND guild_id=? AND course_name=?",
                 (member.id, ctx.guild.id, course)
             )).fetchone()
-            if not row:
-                await ctx.send(
-                    f"❌ **{member.display_name}** энэ курсыг суралцаагүй байна.", ephemeral=True
-                )
-                return
-            await db.execute(
-                "DELETE FROM user_courses WHERE user_id=? AND guild_id=? AND course_name=?",
-                (member.id, ctx.guild.id, course)
-            )
-            # Хэрэв одоогийн ажил нь энэ курст суурилсан бол ажлыг NULL болгоно
+            # job_id тохирч байгаа эсэхийг шалгах
             char_row = await (await db.execute(
                 "SELECT job_id FROM character_info WHERE user_id=? AND guild_id=?",
                 (member.id, ctx.guild.id)
             )).fetchone()
-            if char_row and char_row["job_id"]:
-                job_course = JOBS.get(char_row["job_id"], {}).get("course")
-                if job_course == course:
-                    await db.execute(
-                        "UPDATE character_info SET job_id=NULL WHERE user_id=? AND guild_id=?",
-                        (member.id, ctx.guild.id)
-                    )
+            job_matches = char_row and JOBS.get(char_row["job_id"], {}).get("course") == course
+
+            if not course_row and not job_matches:
+                await ctx.send(
+                    f"❌ **{member.display_name}** энэ курсыг суралцаагүй, мөн тохирох ажил байхгүй байна.",
+                    ephemeral=True
+                )
+                return
+
+            # user_courses-с устгах (байвал)
+            await db.execute(
+                "DELETE FROM user_courses WHERE user_id=? AND guild_id=? AND course_name=?",
+                (member.id, ctx.guild.id, course)
+            )
+            # Ажил тохирч байвал NULL болгох
+            if job_matches:
+                await db.execute(
+                    "UPDATE character_info SET job_id=NULL WHERE user_id=? AND guild_id=?",
+                    (member.id, ctx.guild.id)
+                )
             await db.commit()
+
         cdata = COURSES[course]
+        job_note = " Ажлыг нь хасав." if job_matches else ""
         await ctx.send(
-            f"✅ **{member.display_name}**-н **{cdata['name_mn']}** курс хүчингүй болголоо.\n"
-            f"Тэдний ажил тус курст суурилсан байсан бол ажлыг нь хасав.",
+            f"✅ **{member.display_name}**-н **{cdata['name_mn']}** курс хүчингүй болголоо.{job_note}",
             ephemeral=True
         )
 
@@ -460,73 +474,11 @@ class Admin(commands.Cog):
             await db.commit()
 
         gender_mn = "Хөвгүүн" if sel_gender == "male" else "Охин"
+        gender_mn = "Хөвгүүн" if sel_gender == "male" else "Охин"
         await ctx.send(
             f"👶 **{sel_name}** ({gender_mn}) — {parent.display_name}-д оноогдлоо!",
-            ephemeral=True,
-        )
-
-
-    # ── /adminremovechild ─────────────────────────────────────
-    @commands.hybrid_command(name="adminremovechild", description="[Admin] Виртуал хүүхдийг устгах (child_id)")
-    @app_commands.describe(child_id="Устгах хүүхдийн ID (/family командаас харна)")
-    @admin_only()
-    async def adminremovechild(self, ctx: commands.Context, child_id: int):
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            cur = await db.execute(
-                "SELECT * FROM virtual_children WHERE child_id=? AND guild_id=?",
-                (child_id, ctx.guild.id)
-            )
-            child = await cur.fetchone()
-            if not child:
-                await ctx.send(
-                    f"❌ **{child_id}** ID-тай виртуал хүүхэд энэ сервер байхгүй байна!", ephemeral=True
-                )
-                return
-            await db.execute(
-                "DELETE FROM child_votes WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
-                (ctx.guild.id, child["parent1_id"], child["parent2_id"])
-            )
-            await db.execute("DELETE FROM virtual_children WHERE child_id=? AND guild_id=?",
-                             (child_id, ctx.guild.id))
-            await db.execute("DELETE FROM child_calc WHERE child_id=?", (child_id,))
-            await db.commit()
-
-        gender_mn = "хүү" if child["gender"] == "male" else "охин"
-        await ctx.send(
-            f"🗑️ **{child['name']}** ({gender_mn}, ID:{child_id}) виртуал хүүхэд устгагдлаа.",
             ephemeral=True
         )
-
-    # ── /setmanager ───────────────────────────────────────────
-    @commands.hybrid_command(name="setmanager", description="[Admin] Хэрэглэгчид Manager role олгох")
-    @app_commands.describe(member="Manager болгох хүн")
-    @admin_only()
-    async def setmanager(self, ctx: commands.Context, member: discord.Member):
-        role = discord.utils.get(ctx.guild.roles, name=MANAGER_ROLE_NAME)
-        if not role:
-            role = await ctx.guild.create_role(
-                name=MANAGER_ROLE_NAME,
-                color=discord.Color.orange(),
-                reason="TOP Bot Manager role"
-            )
-        if role in member.roles:
-            await ctx.send(f"⚠️ **{member.display_name}** аль хэдийн Manager байна!", ephemeral=True)
-            return
-        await member.add_roles(role)
-        await ctx.send(f"✅ **{member.display_name}**-д **Manager** role олголоо.", ephemeral=True)
-
-    # ── /removemanager ────────────────────────────────────────
-    @commands.hybrid_command(name="removemanager", description="[Admin] Хэрэглэгчийн Manager role хасах")
-    @app_commands.describe(member="Manager хасах хүн")
-    @admin_only()
-    async def removemanager(self, ctx: commands.Context, member: discord.Member):
-        role = discord.utils.get(ctx.guild.roles, name=MANAGER_ROLE_NAME)
-        if not role or role not in member.roles:
-            await ctx.send(f"⚠️ **{member.display_name}** Manager биш байна!", ephemeral=True)
-            return
-        await member.remove_roles(role)
-        await ctx.send(f"✅ **{member.display_name}**-аас **Manager** role хасагдлаа.", ephemeral=True)
 
 
 async def setup(bot):
