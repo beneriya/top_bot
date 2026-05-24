@@ -52,6 +52,7 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN bank INTEGER DEFAULT 0",
             "ALTER TABLE users ADD COLUMN happiness INTEGER DEFAULT 10",
             "ALTER TABLE users ADD COLUMN happiness_updated TEXT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN last_happiness_update TEXT DEFAULT NULL",
             # Tension / crime system
             "ALTER TABLE users ADD COLUMN tension INTEGER DEFAULT 0",
             "ALTER TABLE users ADD COLUMN rob_cooldown TEXT DEFAULT NULL",
