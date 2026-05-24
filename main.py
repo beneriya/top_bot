@@ -72,6 +72,7 @@ NO_CHAR_REQUIRED = {
     "level_role_add",
     "eruuljuuleh", "prisonlist",
     "jobs", "courses", "rlb",
+    "setjob",
     # Bank (no char needed)
     "deposit", "withdraw", "bank",
     # Admin commands
