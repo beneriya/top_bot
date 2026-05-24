@@ -228,30 +228,23 @@ class Games(commands.Cog):
     #  /roulette  — nerfed: red/black/odd/even 2x->1.7x,
     #               green(0) 35x->25x, number 36x->30x
     # ══════════════════════════════════════════════════════════
-    @commands.hybrid_command(name="roulette", description="Рулетка — red/black/odd/even/green эсвэл 1–36 тоо")
-    @app_commands.describe(bet_type="Тавил: red/black/odd/even/green эсвэл 1–36 тоо шууд бич", bet="Бооцооны дүн")
-    @app_commands.choices(bet_type=[
-        app_commands.Choice(name="\U0001f534 Улаан (Red)   — 1.7x",  value="red"),
-        app_commands.Choice(name="\u26ab Хар (Black)    — 1.7x",  value="black"),
-        app_commands.Choice(name="\U0001f522 Сондгой (Odd) — 1.7x",  value="odd"),
-        app_commands.Choice(name="\U0001f522 Тэгш (Even)   — 1.7x",  value="even"),
-        app_commands.Choice(name="\U0001f7e2 Ногоон (0)    — 25x",   value="green"),
-    ])
+    @commands.hybrid_command(name="roulette", description="Рулетка — red/black/odd/even эсвэл 0–36 тоо (0=ногоон 25x, тоо 30x)")
+    @app_commands.describe(bet_type="red / black / odd / even  эсвэл  0–36 тоо", bet="Бооцооны дүн")
     async def roulette(self, ctx: commands.Context,
                        bet_type: str, bet: int):
         if bet < 100:
             await ctx.send("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
             return
         number = None
-        if bet_type not in ("red", "black", "odd", "even", "green"):
+        if bet_type not in ("red", "black", "odd", "even"):
             try:
                 number = int(bet_type)
-                if not (1 <= number <= 36):
+                if not (0 <= number <= 36):
                     raise ValueError
                 bet_type = "number"
             except ValueError:
                 await ctx.send(
-                    "\u274c Тавил: `red` `black` `odd` `even` `green` эсвэл **1–36** тоо оруулна уу!", ephemeral=True
+                    "\u274c Тавил: `red` `black` `odd` `even` эсвэл **0–36** тоо оруулна уу!\n0 = ногоон (25x), тоо = тухайн тоо (30x)", ephemeral=True
                 )
                 return
 
@@ -278,8 +271,8 @@ class Games(commands.Cog):
         elif bet_type == "black" and spin != 0 and spin not in ROULETTE_RED: won, mult = True, flat_mult
         elif bet_type == "odd"   and spin != 0 and spin % 2 == 1:           won, mult = True, flat_mult
         elif bet_type == "even"  and spin != 0 and spin % 2 == 0:           won, mult = True, flat_mult
-        elif bet_type == "green" and spin == 0:                              won, mult = True, 25
-        elif bet_type == "number" and spin == number:                        won, mult = True, 30
+        elif bet_type == "number" and number == 0 and spin == 0:            won, mult = True, 25
+        elif bet_type == "number" and number != 0 and spin == number:        won, mult = True, 30
 
         if won:
             winnings   = int(bet * (mult - 1))
@@ -301,7 +294,7 @@ class Games(commands.Cog):
         embed = discord.Embed(title="\U0001f3a1 Рулетка", color=color)
         embed.add_field(name="\U0001f3b0 Унасан тоо", value=spin_label, inline=False)
         embed.add_field(name="Таны тавил",
-                        value=f"{bet_type.upper()}" + (f" → {number}" if bet_type=="number" else ""),
+                        value=(f"0 🟢 Ногоон" if bet_type=="number" and number==0 else f"{bet_type.upper()}" + (f" → {number}" if bet_type=="number" else "")),
                         inline=True)
         embed.add_field(name="Үр дүн", value=outcome, inline=True)
         embed.set_footer(text=f"Шинэ үлдэгдэл: {user['balance'] + winnings:,} \u20ae")
