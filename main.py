@@ -58,7 +58,7 @@ ADMIN_ONLY_COMMANDS = {
 # Admin эсвэл Manager ашиглах командууд
 MANAGER_COMMANDS = {
     "adminsetage", "adminsetgender", "adminsetsexuality", "adminsetjob",
-    "adminsetlevel", "adminsetprison", "adminresetcooldown",
+    "adminsetlevel", "adminsetprison", "adminresetcooldown", "adminremovecourse",
     "releaseprison", "giverole", "removerole", "givemoney", "level_role_add",
 }
 
@@ -76,7 +76,7 @@ NO_CHAR_REQUIRED = {
     # Admin commands
     "adminsetage", "adminsetgender", "adminsetsexuality", "adminsetjob",
     "adminkill", "adminsetbalance", "adminaddbalance", "admingivechild", "setvirtualchild", "adminremovechild",
-    "adminsetlevel", "adminresetchar", "adminsetprison", "adminresetcooldown",
+    "adminsetlevel", "adminresetchar", "adminsetprison", "adminresetcooldown", "adminremovecourse",
 }
 
 class PrisonTree(app_commands.CommandTree):
@@ -112,8 +112,8 @@ class PrisonTree(app_commands.CommandTree):
             )
             return False
 
-        # Prison / character шалгалтаас Owner болон серверийн adminг чөлөөлнө
-        if is_owner or is_server_admin:
+        # Owner-г бүх шалгалтаас чөлөөлнө
+        if is_owner:
             return True
 
         try:
@@ -174,6 +174,10 @@ class PrisonTree(app_commands.CommandTree):
         except Exception:
             pass
 
+        # Серверийн admin-г character шалгалтаас чөлөөлнө (prison check хэвийнээр хамаарна)
+        if is_server_admin:
+            return True
+
         # ── Character шалгалт ────────────────────────────────────
         if cmd_name not in NO_CHAR_REQUIRED:
             try:
@@ -223,8 +227,8 @@ async def global_prefix_check(ctx: commands.Context):
         await ctx.send(f"🚫 Энэ командыг зөвхөн **Owner** эсвэл **{MANAGER_ROLE_NAME}** role-той хүн ашиглах боломжтой!")
         return False
 
-    # Prison / character шалгалтаас Owner болон серверийн adminг чөлөөлнө
-    if is_owner or is_server_admin:
+    # Owner-г бүх шалгалтаас чөлөөлнө
+    if is_owner:
         return True
     try:
         async with aiosqlite.connect(DB_PATH) as db:
@@ -255,6 +259,10 @@ async def global_prefix_check(ctx: commands.Context):
         "setvirtualchild","adminremovechild","adminsetlevel","adminresetchar",
         "adminsetprison","adminresetcooldown",
     }
+    # Server admin-г character check-аас чөлөөлнө
+    if is_server_admin:
+        return True
+
     if cmd_name not in NO_CHAR:
         try:
             async with aiosqlite.connect(DB_PATH) as db:
@@ -265,7 +273,7 @@ async def global_prefix_check(ctx: commands.Context):
                 )).fetchone()
             if not has_char:
                 await ctx.send(
-                    "🎭 Ехлээд **`/register`** командаар дүр үүсгэнэ үү!"
+                    "🎭 Эхлээд **`/register`** командаар дүр үүсгэнэ үү!"
                 )
                 return False
         except Exception:

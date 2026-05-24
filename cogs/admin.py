@@ -180,6 +180,52 @@ class Admin(commands.Cog):
         )
 
 
+    # ── /adminremovecourse ────────────────────────────────────
+    @commands.hybrid_command(name="adminremovecourse", description="[Admin] Хэрэглэгчийн сурсан курс хүчингүй болгох")
+    @app_commands.describe(member="Хэрэглэгч", course="Курсын ID (programming/cooking/driving/medical/teaching/law/accounting/business/engineering)")
+    @manager_only()
+    async def adminremovecourse(self, ctx: commands.Context, member: discord.Member, course: str):
+        from cogs.character import COURSES
+        if course not in COURSES:
+            await ctx.send(
+                f"❌ Тийм курс байхгүй! Боломжит курсууд: `{'`, `'.join(COURSES.keys())}`", ephemeral=True
+            )
+            return
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            row = await (await db.execute(
+                "SELECT course_name FROM user_courses WHERE user_id=? AND guild_id=? AND course_name=?",
+                (member.id, ctx.guild.id, course)
+            )).fetchone()
+            if not row:
+                await ctx.send(
+                    f"❌ **{member.display_name}** энэ курсыг суралцаагүй байна.", ephemeral=True
+                )
+                return
+            await db.execute(
+                "DELETE FROM user_courses WHERE user_id=? AND guild_id=? AND course_name=?",
+                (member.id, ctx.guild.id, course)
+            )
+            # Хэрэв одоогийн ажил нь энэ курст суурилсан бол ажлыг NULL болгоно
+            char_row = await (await db.execute(
+                "SELECT job_id FROM character_info WHERE user_id=? AND guild_id=?",
+                (member.id, ctx.guild.id)
+            )).fetchone()
+            if char_row and char_row["job_id"]:
+                job_course = JOBS.get(char_row["job_id"], {}).get("course")
+                if job_course == course:
+                    await db.execute(
+                        "UPDATE character_info SET job_id=NULL WHERE user_id=? AND guild_id=?",
+                        (member.id, ctx.guild.id)
+                    )
+            await db.commit()
+        cdata = COURSES[course]
+        await ctx.send(
+            f"✅ **{member.display_name}**-н **{cdata['name_mn']}** курс хүчингүй болголоо.\n"
+            f"Тэдний ажил тус курст суурилсан байсан бол ажлыг нь хасав.",
+            ephemeral=True
+        )
+
     # ── /adminkill ────────────────────────────────────────────
     @commands.hybrid_command(name="adminkill", description="[Admin] Дүрийн бүх мэдээлэл database-с устгах")
     @app_commands.describe(member="Хэрэглэгч")
@@ -287,25 +333,25 @@ class Admin(commands.Cog):
         )
 
     # ── /adminresetcooldown ───────────────────────────────────
-    @commands.hybrid_command(name="adminresetcooldown", description="[Admin] Work/setjob cooldown цэвэрлэх")
+    @commands.hybrid_command(name="adminresetcooldown", description="[Admin] Work/daily/setjob/hack/rob cooldown бүгдийг цэвэрлэх")
     @app_commands.describe(member="Хэрэглэгч")
     @manager_only()
     async def adminresetcooldown(self, ctx: commands.Context, member: discord.Member):
         await get_user(member.id, ctx.guild.id)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
-                "UPDATE users SET last_work=NULL, last_daily=NULL WHERE user_id=? AND guild_id=?",
+                "UPDATE users SET last_work=NULL, last_daily=NULL, hack_cooldown=NULL, rob_cooldown=NULL "
+                "WHERE user_id=? AND guild_id=?",
                 (member.id, ctx.guild.id)
             )
-            await db.commit()
-        async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE character_info SET last_setjob=NULL WHERE user_id=? AND guild_id=?",
                 (member.id, ctx.guild.id)
             )
             await db.commit()
         await ctx.send(
-            f"✅ **{member.display_name}**-н work/setjob/daily cooldown цэвэрлэгдлээ.", ephemeral=True
+            f"✅ **{member.display_name}**-н work / daily / setjob / hack / rob cooldown бүгд цэвэрлэгдлээ.",
+            ephemeral=True
         )
 
 

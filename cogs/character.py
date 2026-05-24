@@ -1263,15 +1263,31 @@ class Character(commands.Cog):
                 "INSERT OR IGNORE INTO user_courses (user_id, guild_id, course_name) VALUES (?,?,?)",
                 (ctx.author.id, ctx.guild.id, course)
             )
+            # Курст тохирох ажлыг автоматаар тохируулна
+            unlocked_job = None
+            for jid, jdata in JOBS.items():
+                if jdata.get("course") == course:
+                    unlocked_job = jid
+                    break
+            if unlocked_job:
+                await db.execute(
+                    "UPDATE character_info SET job_id=? WHERE user_id=? AND guild_id=?",
+                    (unlocked_job, ctx.author.id, ctx.guild.id)
+                )
             await db.commit()
+
+        job_line = ""
+        if unlocked_job and unlocked_job in JOBS:
+            j = JOBS[unlocked_job]
+            job_line = f"\n\n💼 Ажил автоматаар тохируулагдлаа: **{j['emoji']} {j['name_mn']}**"
 
         embed = discord.Embed(
             title=f"{cdata['emoji']} Курс амжилттай дууслаа!",
             description=(
                 f"**{cdata['name_mn']}**-д амжилттай элслээ!\n\n"
                 f"💸 Төлсөн: **{cost:,} ₮**\n"
-                f"💰 Үлдэгдэл: **{new_bal:,} ₮**\n\n"
-                f"💼 `/jobs` дээр шинэ мэргэжлийн ажлыг үзээрэй!"
+                f"💰 Үлдэгдэл: **{new_bal:,} ₮**"
+                f"{job_line}"
             ),
             color=discord.Color.green()
         )

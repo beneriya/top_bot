@@ -220,28 +220,66 @@ class Economy(commands.Cog):
         await ctx.send(embed=embed)
 
     # ── Мөнгө шилжүүлэх ───────────────────────────────────────
-    @commands.hybrid_command(name="transfer", description="Өөр хүнд мөнгө шилжүүлэх")
+    @commands.hybrid_command(name="transfer", description="Өөр хүнд мөнгө шилжүүлэх (max 50,000₮, 1 цаг cooldown)")
+    @app_commands.describe(member="Хүлээн авагч", amount="Дүн (хамгийн их 50,000₮)")
     async def transfer(self, ctx: commands.Context, member: discord.Member, amount: int):
+        TRANSFER_MAX = 50_000
+        TRANSFER_CD_HOURS = 1
+
         if amount <= 0:
             await ctx.send("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
+            return
+        if amount > TRANSFER_MAX:
+            await ctx.send(f"❌ Нэг удаагийн шилжүүлэг **{TRANSFER_MAX:,} ₮**-аас хэтрэхгүй!", ephemeral=True)
             return
         if member.id == ctx.author.id:
             await ctx.send("❌ Өөртөө шилжүүлэх боломжгүй!", ephemeral=True)
             return
 
-        sender = await get_user(ctx.author.id, ctx.guild.id)
-        if sender["balance"] < amount:
-            await ctx.send(
-                f"❌ Хүрэлцэхгүй байна! Таны үлдэгдэл: **{sender['balance']:,} ₮**", ephemeral=True
-            )
-            return
+        now = datetime.utcnow()
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            # Per-recipient cooldown check
+            cd_row = await (await db.execute(
+                "SELECT last_sent FROM transfer_cooldowns WHERE sender_id=? AND recipient_id=? AND guild_id=?",
+                (ctx.author.id, member.id, ctx.guild.id)
+            )).fetchone()
+            if cd_row:
+                last = datetime.fromisoformat(cd_row["last_sent"])
+                remaining = timedelta(hours=TRANSFER_CD_HOURS) - (now - last)
+                if remaining.total_seconds() > 0:
+                    mins = int(remaining.total_seconds() // 60)
+                    secs = int(remaining.total_seconds() % 60)
+                    await ctx.send(
+                        f"⏳ {member.display_name}-д дахин шилжүүлэхэд **{mins}м {secs}с** хүлээнэ үү!",
+                        ephemeral=True
+                    )
+                    return
 
-        await update_balance(ctx.author.id, ctx.guild.id, -amount)
-        await update_balance(member.id, ctx.guild.id, amount)
+            sender = await get_user(ctx.author.id, ctx.guild.id)
+            if sender["balance"] < amount:
+                await ctx.send(
+                    f"❌ Хүрэлцэхгүй байна! Таны pocket: **{sender['balance']:,} ₮**", ephemeral=True
+                )
+                return
+
+            await update_balance(ctx.author.id, ctx.guild.id, -amount)
+            await update_balance(member.id, ctx.guild.id, amount)
+
+            await db.execute(
+                """INSERT INTO transfer_cooldowns (sender_id, recipient_id, guild_id, last_sent)
+                   VALUES (?,?,?,?)
+                   ON CONFLICT(sender_id, recipient_id, guild_id) DO UPDATE SET last_sent=excluded.last_sent""",
+                (ctx.author.id, member.id, ctx.guild.id, now.isoformat())
+            )
+            await db.commit()
 
         embed = discord.Embed(
             title="💸 Шилжүүлэг амжилттай!",
-            description=f"**{amount:,} ₮**-ийг {member.mention}-д шилжүүллээ!",
+            description=(
+                f"{member.mention}-д **{amount:,} ₮** шилжүүллээ!\n"
+                f"⏳ Энэ хүнд дахин шилжүүлэхэд **1 цаг** хүлээнэ."
+            ),
             color=discord.Color.blue()
         )
         await ctx.send(embed=embed)
@@ -1165,43 +1203,51 @@ class Economy(commands.Cog):
     @commands.hybrid_command(name="collectinvest", description="Хөрөнгө оруулалтаа авах (12 цагийн дараа)")
     async def collectinvest(self, ctx: commands.Context):
         uid, gid = ctx.author.id, ctx.guild.id
-        user = await get_user(uid, gid)
-        invested = user.get("invest_amount") or 0
-        inv_time = user.get("invest_time")
-
-        if invested <= 0 or not inv_time:
-            await ctx.send("❌ Хөрөнгө оруулалт байхгүй байна! `/invest` командаар эхлүүл.", ephemeral=True)
-            return
-
-        now     = datetime.utcnow()
-        elapsed = (now - datetime.fromisoformat(inv_time)).total_seconds() / 3600
-        if elapsed < 12:
-            rem_h = int(12 - elapsed)
-            rem_m = int(((12 - elapsed) % 1) * 60)
-            await ctx.send(
-                f"⏳ Хугацаа дуусаагүй! **{rem_h}ц {rem_m}м** хүлээнэ үү.", ephemeral=True
-            )
-            return
-
-        interest = int(invested * 0.08)
-        total    = invested + interest
+        now = datetime.utcnow()
         async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            row = await (await db.execute(
+                "SELECT invest_amount, invest_time FROM users WHERE user_id=? AND guild_id=?",
+                (uid, gid)
+            )).fetchone()
+
+            if not row or not row["invest_amount"] or not row["invest_time"]:
+                await ctx.send("❌ Идэвхтэй хөрөнгө оруулалт байхгүй байна! `/invest` командаар эхлүүлнэ үү.", ephemeral=True)
+                return
+
+            ready_at = datetime.fromisoformat(row["invest_time"])
+            if now < ready_at:
+                remaining = ready_at - now
+                mins = int(remaining.total_seconds() // 60)
+                secs = int(remaining.total_seconds() % 60)
+                release_ts = int(ready_at.timestamp())
+                await ctx.send(
+                    f"⏳ Хөрөнгө оруулалт дуусахад **{mins}м {secs}с** үлдлээ!\n"
+                    f"🕐 Авах боломжтой: <t:{release_ts}:R>",
+                    ephemeral=True
+                )
+                return
+
+            amount   = row["invest_amount"]
+            interest = int(amount * 0.08)
+            total    = amount + interest
             await db.execute(
-                "UPDATE users SET balance=MIN(?,balance+?), invest_amount=0, invest_time=NULL WHERE user_id=? AND guild_id=?",
-                (BALANCE_CAP, total, uid, gid)
+                "UPDATE users SET balance=MIN(1000000000, balance+?), invest_amount=0, invest_time=NULL "
+                "WHERE user_id=? AND guild_id=?",
+                (total, uid, gid)
             )
             await db.commit()
 
         embed = discord.Embed(
-            title="💰 Хөрөнгө оруулалт авлаа!",
+            title="📈 Хөрөнгө оруулалт амжилттай авагдлаа!",
             description=(
-                f"🏦 Үндсэн: **{invested:,} ₮**\n"
-                f"📈 Ашиг (8%): **+{interest:,} ₮**\n"
-                f"💵 Нийт: **+{total:,} ₮**"
+                f"💵 Үндсэн: **{amount:,} ₮**\n"
+                f"💰 Хүү (8%): **+{interest:,} ₮**\n"
+                f"💎 Нийт авсан: **{total:,} ₮**"
             ),
-            color=0x27AE60
+            color=0x2ECC71
         )
-        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        embed.set_footer(text="TOP Bot  •  /invest")
         await ctx.send(embed=embed)
 
 

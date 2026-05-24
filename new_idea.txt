@@ -66,4 +66,4 @@ tuhain hunees sursan mergejil-g ni huraaj awdag bolgoh command admin-d nemj ug
 adminresetcooldown command ni 3 han ymnii cd-g res hiij baina ene deer hack bolon rob-g orul
 enroll course higed ter ni profile-d ezemshsen mergejil-d orj irehgu baina, mon ugasa ter mergejliig sursan hernee orj irehgui baina. zaawal adminsetjob command aar mergejil songuulad baina
 shoron dotoroos command ajillad baina /work geh met arman ii server dotor yr ni hamag ym bolj butehgui baina. minii uurin anhnii server dotor buh ym ys zuitei zow ajillad baina 
-
+edgeer aldaanuud yg bainuu baihgui baina uu shalgaarai bas 

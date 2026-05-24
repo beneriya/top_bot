@@ -261,6 +261,16 @@ async def init_db():
             )
         """)
 
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS transfer_cooldowns (
+                sender_id    INTEGER NOT NULL,
+                recipient_id INTEGER NOT NULL,
+                guild_id     INTEGER NOT NULL,
+                last_sent    TEXT NOT NULL,
+                PRIMARY KEY (sender_id, recipient_id, guild_id)
+            )
+        """)
+
         # ── family extras ─────────────────────────────────────────
         for col in [
             "ALTER TABLE family ADD COLUMN last_child_prompt TEXT DEFAULT NULL",
