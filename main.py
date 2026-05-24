@@ -286,9 +286,8 @@ async def on_ready():
     logger.info(f"{len(bot.guilds)} серверт холбогдсон")
     logger.info(f"Tree дэх командын тоо: {len(bot.tree.get_commands())}")
     try:
-        # Глобал командуудыг цэвэрлэх (давхардлаас сэргийлнэ)
-        bot.tree.clear_commands(guild=None)
-        await bot.tree.sync()
+        # Discord дээрх глобал командуудыг цэвэрлэх (давхардлаас сэргийлнэ)
+        await bot.http.bulk_upsert_global_commands(bot.application_id, [])
         # Guild-specific командуудыг sync хийх
         for guild in bot.guilds:
             bot.tree.copy_global_to(guild=guild)
