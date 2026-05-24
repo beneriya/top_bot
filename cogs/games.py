@@ -228,26 +228,30 @@ class Games(commands.Cog):
     #  /roulette  — nerfed: red/black/odd/even 2x->1.7x,
     #               green(0) 35x->25x, number 36x->30x
     # ══════════════════════════════════════════════════════════
-    @commands.hybrid_command(name="roulette", description="Рулетка — улаан/хар, сондгой/тэгш, ногоон, тоо (1–36)")
-    @app_commands.describe(bet_type="Таны тавил", bet="Бооцооны дүн", number="Тодорхой тоо (1–36)")
+    @commands.hybrid_command(name="roulette", description="Рулетка — red/black/odd/even/green эсвэл 1–36 тоо")
+    @app_commands.describe(bet_type="Тавил: red/black/odd/even/green эсвэл 1–36 тоо шууд бич", bet="Бооцооны дүн")
     @app_commands.choices(bet_type=[
         app_commands.Choice(name="\U0001f534 Улаан (Red)   — 1.7x",  value="red"),
         app_commands.Choice(name="\u26ab Хар (Black)    — 1.7x",  value="black"),
         app_commands.Choice(name="\U0001f522 Сондгой (Odd) — 1.7x",  value="odd"),
         app_commands.Choice(name="\U0001f522 Тэгш (Even)   — 1.7x",  value="even"),
         app_commands.Choice(name="\U0001f7e2 Ногоон (0)    — 25x",   value="green"),
-        app_commands.Choice(name="\U0001f3af Тоо (1-36)    — 30x",   value="number"),
     ])
     async def roulette(self, ctx: commands.Context,
-                       bet_type: str, bet: int,
-                       number: int = None):
+                       bet_type: str, bet: int):
         if bet < 100:
             await ctx.send("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
             return
-        if bet_type == "number":
-            if number is None or not (1 <= number <= 36):
+        number = None
+        if bet_type not in ("red", "black", "odd", "even", "green"):
+            try:
+                number = int(bet_type)
+                if not (1 <= number <= 36):
+                    raise ValueError
+                bet_type = "number"
+            except ValueError:
                 await ctx.send(
-                    "\u274c `number` горимд 1–36 хооронд тоо оруулна уу!", ephemeral=True
+                    "\u274c Тавил: `red` `black` `odd` `even` `green` эсвэл **1–36** тоо оруулна уу!", ephemeral=True
                 )
                 return
 
