@@ -9,6 +9,7 @@ import logging.handlers
 from datetime import datetime
 from dotenv import load_dotenv
 from database import init_db, DB_PATH
+from config import OWNER_ID, MANAGER_ROLE_NAME
 import aiosqlite
 
 load_dotenv()
@@ -47,6 +48,20 @@ logger = setup_logging()
 
 ALLOWED_IN_PRISON = {"help", "eruuljuuleh"}
 
+# Зөвхөн Admin эсвэл Owner ашиглах командууд
+ADMIN_ONLY_COMMANDS = {
+    "adminkill", "adminsetbalance", "adminaddbalance", "adminresetchar",
+    "setvirtualchild", "admingivechild", "adminremovechild",
+    "setmanager", "removemanager",
+}
+
+# Admin эсвэл Manager ашиглах командууд
+MANAGER_COMMANDS = {
+    "adminsetage", "adminsetgender", "adminsetsexuality", "adminsetjob",
+    "adminsetlevel", "adminsetprison", "adminresetcooldown",
+    "releaseprison", "giverole", "removerole", "givemoney", "level_role_add",
+}
+
 # Дүргүй хүн ашиглаж болох командууд
 NO_CHAR_REQUIRED = {
     "register", "help",
@@ -76,10 +91,27 @@ class PrisonTree(app_commands.CommandTree):
         if not interaction.guild_id:
             return True
 
-        # Admin эрхтэй хүнийг prison check-с чөлөөлнө
+        # Admin / Owner-г бүх шалгалтаас чөлөөлнө
         member = interaction.guild.get_member(interaction.user.id) if interaction.guild else None
-        if member and member.guild_permissions.administrator:
+        is_admin = bool(member and (member.guild_permissions.administrator or interaction.user.id == OWNER_ID))
+        is_manager = is_admin or bool(member and any(r.name == MANAGER_ROLE_NAME for r in member.roles))
+
+        if is_admin:
             return True
+
+        # ── Permission gate ──────────────────────────────────────
+        if cmd_name in ADMIN_ONLY_COMMANDS:
+            await interaction.response.send_message(
+                "🚫 Энэ командыг зөвхөн **Admin** ашиглах боломжтой!",
+                ephemeral=True
+            )
+            return False
+        if cmd_name in MANAGER_COMMANDS and not is_manager:
+            await interaction.response.send_message(
+                f"🚫 Энэ командыг зөвхөн **Admin** эсвэл **{MANAGER_ROLE_NAME}** role-той хүн ашиглах боломжтой!",
+                ephemeral=True
+            )
+            return False
 
         try:
             async with aiosqlite.connect(DB_PATH) as db:
@@ -174,10 +206,21 @@ async def global_prefix_check(ctx: commands.Context):
     cmd_name = ctx.command.name if ctx.command else None
     if not cmd_name or not ctx.guild:
         return True
-    # Admin commands — no restriction
+    # Admin / Owner — no restriction
     member = ctx.guild.get_member(ctx.author.id)
-    if member and member.guild_permissions.administrator:
+    is_admin = bool(member and (member.guild_permissions.administrator or ctx.author.id == OWNER_ID))
+    is_manager = is_admin or bool(member and any(r.name == MANAGER_ROLE_NAME for r in member.roles))
+
+    if is_admin:
         return True
+
+    # Permission gate for prefix commands
+    if cmd_name in ADMIN_ONLY_COMMANDS:
+        await ctx.send("🚫 Энэ командыг зөвхөн **Admin** ашиглах боломжтой!")
+        return False
+    if cmd_name in MANAGER_COMMANDS and not is_manager:
+        await ctx.send(f"🚫 Энэ командыг зөвхөн **Admin** эсвэл **{MANAGER_ROLE_NAME}** role-той хүн ашиглах боломжтой!")
+        return False
     try:
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
@@ -201,7 +244,7 @@ async def global_prefix_check(ctx: commands.Context):
         "register","help","profile","top","richlist","balance","stats",
         "givemoney","releaseprison","giverole","removerole","level_role_add",
         "eruuljuuleh","prisonlist","jobs","courses","rlb",
-        "deposit","withdraw","bank",
+                "deposit","withdraw","bank",
         "adminsetage","adminsetgender","adminsetsexuality","adminsetjob",
         "adminkill","adminsetbalance","adminaddbalance","admingivechild",
         "setvirtualchild","adminremovechild","adminsetlevel","adminresetchar",
@@ -217,7 +260,7 @@ async def global_prefix_check(ctx: commands.Context):
                 )).fetchone()
             if not has_char:
                 await ctx.send(
-                    "🎭 Эхлээд **`/register`** командаар дүр үүсгэнэ үү!"
+                    "🎭 Ехлээд **`/register`** командаар дүр үүсгэнэ үү!"
                 )
                 return False
         except Exception:
@@ -233,7 +276,7 @@ async def on_ready():
         for guild in bot.guilds:
             bot.tree.copy_global_to(guild=guild)
             synced = await bot.tree.sync(guild=guild)
-            logger.info(f"{guild.name} серверт {len(synced)} команд sync хийгдлээ")
+            logger.info(f"{guild.name} серверт {len(synced)} команд sync хийгдлэе")
     except Exception as e:
         logger.error(f"Sync алдаа: {e}")
 
@@ -252,7 +295,7 @@ async def main():
         await load_cogs()
         token = os.getenv("TOKEN")
         if not token:
-            logger.critical("TOKEN олдонгүй! .env файлаа шалгана уу.")
+            logger.critical("TOKEN олдонгүй! .env файлаа шалгана үү.")
             return
         await bot.start(token)
 
