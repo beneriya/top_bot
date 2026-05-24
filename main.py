@@ -53,13 +53,14 @@ ADMIN_ONLY_COMMANDS = {
     "adminkill", "adminsetbalance", "adminaddbalance", "adminresetchar",
     "setvirtualchild", "admingivechild", "adminremovechild",
     "setmanager", "removemanager",
+    "givemoney", "adminremovecourse", "adminresetcooldown", "adminsetjob",
 }
 
 # Admin эсвэл Manager ашиглах командууд
 MANAGER_COMMANDS = {
-    "adminsetage", "adminsetgender", "adminsetsexuality", "adminsetjob",
-    "adminsetlevel", "adminsetprison", "adminresetcooldown", "adminremovecourse",
-    "releaseprison", "giverole", "removerole", "givemoney", "level_role_add",
+    "adminsetage", "adminsetgender", "adminsetsexuality",
+    "adminsetlevel", "adminsetprison",
+    "releaseprison", "giverole", "removerole", "level_role_add",
 }
 
 # Дүргүй хүн ашиглаж болох командууд
