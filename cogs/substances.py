@@ -149,38 +149,38 @@ class Substances(commands.Cog):
     # ────────────────────────────────────────────────────────────
     #  /drink
     # ────────────────────────────────────────────────────────────
-    @app_commands.command(name="drink", description="Inventory-аас архи ууж согтох")
+    @commands.hybrid_command(name="drink", description="Inventory-аас архи ууж согтох")
     @app_commands.describe(item_id="Архины item ID  (/shop alcohol)")
-    async def drink(self, interaction: discord.Interaction, item_id: int):
+    async def drink(self, ctx: commands.Context, item_id: int):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute("""
                 SELECT i.quantity, s.name, s.emoji, s.effect_value, s.item_type
                 FROM inventory i JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=? AND i.item_id=?
-            """, (interaction.user.id, interaction.guild_id, item_id))
+            """, (ctx.author.id, ctx.guild.id, item_id))
             inv_item = await cursor.fetchone()
 
         if not inv_item:
-            await interaction.response.send_message(
+            await ctx.send(
                 "❌ Тэр зүйл inventory-д байхгүй! `/shop alcohol` → `/buy`", ephemeral=True
             )
             return
         if inv_item["item_type"] != "alcohol":
-            await interaction.response.send_message(
+            await ctx.send(
                 "❌ Энэ архи биш!", ephemeral=True
             )
             return
 
         # 18 насны хязгаар
-        _char = await get_char(interaction.user.id, interaction.guild_id)
+        _char = await get_char(ctx.author.id, ctx.guild.id)
         if _char and calc_age(dict(_char)) < 18:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"🔞 **18 хүрэхгүй** хүнд архи өгөхгүй!", ephemeral=True
             )
             return
 
-        user    = await get_user(interaction.user.id, interaction.guild_id)
+        user    = await get_user(ctx.author.id, ctx.guild.id)
         current = user.get("sogto_level", 0)
 
         # ── MAX → PRISON ─────────────────────────────────────────
@@ -192,7 +192,7 @@ class Substances(commands.Cog):
             async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute(
                     "UPDATE users SET prison_until=?, prison_count=?, prison_reason='alcohol' WHERE user_id=? AND guild_id=?",
-                    (release_at.isoformat(), new_count, interaction.user.id, interaction.guild_id)
+                    (release_at.isoformat(), new_count, ctx.author.id, ctx.guild.id)
                 )
                 await db.commit()
 
@@ -212,9 +212,9 @@ class Substances(commands.Cog):
                 value=f"{rank_e} **{rank_n}** *(нийт {new_count} удаа)*",
                 inline=False
             )
-            embed.set_thumbnail(url=interaction.user.display_avatar.url)
+            embed.set_thumbnail(url=ctx.author.display_avatar.url)
             embed.set_footer(text="Шоронгоос эрт гарах боломжгүй — хугацаа дуустал хүлээнэ үү")
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
             return
 
         # ── Ердийн уух ───────────────────────────────────────────
@@ -224,16 +224,16 @@ class Substances(commands.Cog):
             if inv_item["quantity"] <= 1:
                 await db.execute(
                     "DELETE FROM inventory WHERE user_id=? AND guild_id=? AND item_id=?",
-                    (interaction.user.id, interaction.guild_id, item_id)
+                    (ctx.author.id, ctx.guild.id, item_id)
                 )
             else:
                 await db.execute(
                     "UPDATE inventory SET quantity=quantity-1 WHERE user_id=? AND guild_id=? AND item_id=?",
-                    (interaction.user.id, interaction.guild_id, item_id)
+                    (ctx.author.id, ctx.guild.id, item_id)
                 )
             await db.execute(
                 "UPDATE users SET sogto_level=? WHERE user_id=? AND guild_id=?",
-                (new_level, interaction.user.id, interaction.guild_id)
+                (new_level, ctx.author.id, ctx.guild.id)
             )
             await db.commit()
 
@@ -251,50 +251,50 @@ class Substances(commands.Cog):
             inline=False
         )
         embed.add_field(name="Байдал", value=state, inline=False)
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
         if new_level == MAX_LEVEL:
             embed.set_footer(text="⚠️  MAX! Дахин уувал 30 минутын турш эрүүлжүүлэхэд орно!")
         else:
             embed.set_footer(text="30 минут тутамд согтолт -1 автоматаар буурна")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ────────────────────────────────────────────────────────────
     #  /smoke
     # ────────────────────────────────────────────────────────────
-    @app_commands.command(name="smoke", description="Inventory-аас тамхи/вэйп хэрэглэх")
+    @commands.hybrid_command(name="smoke", description="Inventory-аас тамхи/вэйп хэрэглэх")
     @app_commands.describe(item_id="Тамхи эсвэл вэйпийн item ID")
-    async def smoke(self, interaction: discord.Interaction, item_id: int):
+    async def smoke(self, ctx: commands.Context, item_id: int):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute("""
                 SELECT i.quantity, s.name, s.emoji, s.effect_value, s.item_type
                 FROM inventory i JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=? AND i.item_id=?
-            """, (interaction.user.id, interaction.guild_id, item_id))
+            """, (ctx.author.id, ctx.guild.id, item_id))
             inv_item = await cursor.fetchone()
 
         if not inv_item:
-            await interaction.response.send_message("❌ Тэр зүйл inventory-д байхгүй!", ephemeral=True)
+            await ctx.send("❌ Тэр зүйл inventory-д байхгүй!", ephemeral=True)
             return
         if inv_item["item_type"] not in ("cigarette", "vape"):
-            await interaction.response.send_message("❌ Энэ тамхи эсвэл вэйп биш!", ephemeral=True)
+            await ctx.send("❌ Энэ тамхи эсвэл вэйп биш!", ephemeral=True)
             return
 
         # 18 насны хязгаар
-        _char2 = await get_char(interaction.user.id, interaction.guild_id)
+        _char2 = await get_char(ctx.author.id, ctx.guild.id)
         if _char2 and calc_age(dict(_char2)) < 18:
-            await interaction.response.send_message(
+            await ctx.send(
                 "🔞 **18 хүрэхгүй** хүнд тамхи/вэйп өгөхгүй!", ephemeral=True
             )
             return
 
-        user    = await get_user(interaction.user.id, interaction.guild_id)
+        user    = await get_user(ctx.author.id, ctx.guild.id)
         current = user.get("mansuuralt_level", 0)
 
         # ── MAX → 10% health tax ─────────────────────────────────
         if current >= MAX_LEVEL:
             penalty = max(1, int(user["balance"] * 0.10))
-            await update_balance(interaction.user.id, interaction.guild_id, -penalty)
+            await update_balance(ctx.author.id, ctx.guild.id, -penalty)
 
             embed = discord.Embed(
                 title="🏥  Эрүүл мэндийн зардал суутгагдлаа!",
@@ -306,9 +306,9 @@ class Substances(commands.Cog):
                 ),
                 color=0xCC0000
             )
-            embed.set_thumbnail(url=interaction.user.display_avatar.url)
+            embed.set_thumbnail(url=ctx.author.display_avatar.url)
             embed.set_footer(text="30 минут тутамд мансуурал автоматаар буурна")
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
             return
 
         # ── Ердийн хэрэглэх ──────────────────────────────────────
@@ -319,16 +319,16 @@ class Substances(commands.Cog):
             if inv_item["quantity"] <= 1:
                 await db.execute(
                     "DELETE FROM inventory WHERE user_id=? AND guild_id=? AND item_id=?",
-                    (interaction.user.id, interaction.guild_id, item_id)
+                    (ctx.author.id, ctx.guild.id, item_id)
                 )
             else:
                 await db.execute(
                     "UPDATE inventory SET quantity=quantity-1 WHERE user_id=? AND guild_id=? AND item_id=?",
-                    (interaction.user.id, interaction.guild_id, item_id)
+                    (ctx.author.id, ctx.guild.id, item_id)
                 )
             await db.execute(
                 "UPDATE users SET mansuuralt_level=? WHERE user_id=? AND guild_id=?",
-                (new_level, interaction.user.id, interaction.guild_id)
+                (new_level, ctx.author.id, ctx.guild.id)
             )
             await db.commit()
 
@@ -346,25 +346,25 @@ class Substances(commands.Cog):
             inline=False
         )
         embed.add_field(name="Байдал", value=state, inline=False)
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
         if new_level == MAX_LEVEL:
             embed.set_footer(text="⚠️  MAX! Дахин хэрэглэвэл эрүүл мэндийн зардал суутгагдана!")
         else:
             embed.set_footer(text="30 минут тутамд мансуурал -1 автоматаар буурна")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ────────────────────────────────────────────────────────────
     #  /mystate
     # ────────────────────────────────────────────────────────────
-    @app_commands.command(name="mystate", description="Өөрийн согтолт болон мансуурлын түвшин харах")
-    async def mystate(self, interaction: discord.Interaction):
-        user  = await get_user(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="mystate", description="Өөрийн согтолт болон мансуурлын түвшин харах")
+    async def mystate(self, ctx: commands.Context):
+        user  = await get_user(ctx.author.id, ctx.guild.id)
         sogto = user.get("sogto_level", 0)
         mans  = user.get("mansuuralt_level", 0)
         color = level_color(max(sogto, mans))
 
         embed = discord.Embed(
-            title=f"🧠  {interaction.user.display_name}-н одоогийн байдал",
+            title=f"🧠  {ctx.author.display_name}-н одоогийн байдал",
             color=color
         )
         embed.add_field(
@@ -377,16 +377,16 @@ class Substances(commands.Cog):
             value=f"{make_bar(mans, MAX_LEVEL)} **{mans}/{MAX_LEVEL}**\n{get_state_text(mans, MANS_STATES)}",
             inline=False
         )
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.set_footer(text="30 минут тутамд автоматаар -1 буурна  •  /drink /smoke нэмнэ")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ────────────────────────────────────────────────────────────
     #  /eruuljuuleh  — статус харах (товч байхгүй)
     # ────────────────────────────────────────────────────────────
-    @app_commands.command(name="eruuljuuleh", description="Шоронгийн статус болон ранк харах")
-    async def eruuljuuleh(self, interaction: discord.Interaction):
-        user         = await get_user(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="eruuljuuleh", description="Шоронгийн статус болон ранк харах")
+    async def eruuljuuleh(self, ctx: commands.Context):
+        user         = await get_user(ctx.author.id, ctx.guild.id)
         prison_until = user.get("prison_until")
         count        = user.get("prison_count", 0)
         remaining    = prison_remaining(prison_until)
@@ -406,8 +406,8 @@ class Substances(commands.Cog):
                 value=f"{rank_e} **{rank_n}** *(нийт {count} удаа шоронд орсон)*",
                 inline=False
             )
-            embed.set_thumbnail(url=interaction.user.display_avatar.url)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            embed.set_thumbnail(url=ctx.author.display_avatar.url)
+            await ctx.send(embed=embed, ephemeral=True)
             return
 
         # ── Шоронд байна ─────────────────────────────────────────
@@ -433,16 +433,16 @@ class Substances(commands.Cog):
             value=f"{rank_e} **{rank_n}** *(нийт {count} удаа)*",
             inline=False
         )
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.set_footer(text="\u0425\u0443\u0433\u0430\u0446\u0430\u0430 \u0434\u0443\u0443\u0441\u0441\u0430\u043d \u0434\u0430\u0440\u0430\u0430 \"\U0001f513 \u0421\u0443\u043b\u043b\u0430\u0445\" \u0442\u043e\u0432\u0447\u0438\u0439\u0433 \u0434\u0430\u0440\u0430\u0430!")
-        view = ReleaseView(interaction.user.id, interaction.guild_id, prison_until)
-        await interaction.response.send_message(embed=embed, view=view)
+        view = ReleaseView(ctx.author.id, ctx.guild.id, prison_until)
+        await ctx.send(embed=embed, view=view)
 
     # ────────────────────────────────────────────────────────────
     #  /prisonlist  — одоо шоронд байгаа хүмүүсийн жагсаалт
     # ────────────────────────────────────────────────────────────
-    @app_commands.command(name="prisonlist", description="Одоо эрүүлжүүлэхэд байгаа хүмүүсийн жагсаалт")
-    async def prisonlist(self, interaction: discord.Interaction):
+    @commands.hybrid_command(name="prisonlist", description="Одоо эрүүлжүүлэхэд байгаа хүмүүсийн жагсаалт")
+    async def prisonlist(self, ctx: commands.Context):
         now = datetime.utcnow().isoformat()
 
         async with aiosqlite.connect(DB_PATH) as db:
@@ -452,7 +452,7 @@ class Substances(commands.Cog):
                 FROM users
                 WHERE guild_id=? AND prison_until IS NOT NULL AND prison_until > ?
                 ORDER BY prison_count DESC
-            """, (interaction.guild_id, now))
+            """, (ctx.guild.id, now))
             rows = await cursor.fetchall()
 
         if not rows:
@@ -461,7 +461,7 @@ class Substances(commands.Cog):
                 description="✅ Одоо эрүүлжүүлэхэд хэн ч байхгүй байна!",
                 color=0x00CC44
             )
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
             return
 
         embed = discord.Embed(
@@ -471,7 +471,7 @@ class Substances(commands.Cog):
 
         lines = []
         for i, row in enumerate(rows, 1):
-            member = interaction.guild.get_member(row["user_id"])
+            member = ctx.guild.get_member(row["user_id"])
             name   = member.display_name if member else f"ID:{row['user_id']}"
             count  = row["prison_count"]
             rank_e, rank_n = get_prison_rank(count)
@@ -489,32 +489,32 @@ class Substances(commands.Cog):
 
         embed.description = "\n\n".join(lines)
         embed.set_footer(text="Шоронгийн дотоод ранк: Шалбадай → Суугуул → Хулгар → Шоронгийн хадаас")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
 
     # ────────────────────────────────────────────────────────────
     #  /releaseprison  [Admin]
     # ────────────────────────────────────────────────────────────
-    @app_commands.command(name="releaseprison", description="Хэрэглэгчийг эрүүлжүүлэхээс гаргах [Admin]")
+    @commands.hybrid_command(name="releaseprison", description="Хэрэглэгчийг эрүүлжүүлэхээс гаргах [Admin]")
     @app_commands.checks.has_permissions(administrator=True)
-    async def releaseprison(self, interaction: discord.Interaction, member: discord.Member):
+    async def releaseprison(self, ctx: commands.Context, member: discord.Member):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 "SELECT prison_until, prison_count FROM users WHERE user_id=? AND guild_id=?",
-                (member.id, interaction.guild_id)
+                (member.id, ctx.guild.id)
             )
             row = await cursor.fetchone()
 
         if not row:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ {member.display_name} бүртгэлгүй байна!", ephemeral=True
             )
             return
 
         remaining = prison_remaining(row["prison_until"])
         if not remaining:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"ℹ️ {member.display_name} одоо эрүүлжүүлэхэд байхгүй байна.", ephemeral=True
             )
             return
@@ -522,7 +522,7 @@ class Substances(commands.Cog):
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE users SET prison_until=NULL, sogto_level=0 WHERE user_id=? AND guild_id=?",
-                (member.id, interaction.guild_id)
+                (member.id, ctx.guild.id)
             )
             await db.commit()
 
@@ -532,12 +532,12 @@ class Substances(commands.Cog):
                         f"*(Нийт {row['prison_count']} удаа шоронд орсон бүртгэл хэвээр үлдэнэ)*",
             color=discord.Color.green()
         )
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     @releaseprison.error
-    async def releaseprison_error(self, interaction: discord.Interaction, error):
+    async def releaseprison_error(self, ctx: commands.Context, error):
         if isinstance(error, app_commands.MissingPermissions):
-            await interaction.response.send_message("❌ Зөвхөн Admin хэрэглэх боломжтой!", ephemeral=True)
+            await ctx.send("❌ Зөвхөн Admin хэрэглэх боломжтой!", ephemeral=True)
 
 
 async def setup(bot):

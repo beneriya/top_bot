@@ -85,14 +85,14 @@ class Games(commands.Cog):
     # ══════════════════════════════════════════════════════════
     #  /slot  — 10 symbols, big-bet scaling (500k+ = 2x)
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="slot", description="Slot machine тоглох — том бооцоонд өндөр хожил (500k+)")
-    async def slot(self, interaction: discord.Interaction, bet: int):
+    @commands.hybrid_command(name="slot", description="Slot machine тоглох — том бооцоонд өндөр хожил (500k+)")
+    async def slot(self, ctx: commands.Context, bet: int):
         if bet < 100:
-            await interaction.response.send_message("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
+            await ctx.send("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
             return
-        user = await get_user(interaction.user.id, interaction.guild_id)
+        user = await get_user(ctx.author.id, ctx.guild.id)
         if user["balance"] < bet:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"\u274c Мөнгө хүрэлцэхгүй! Үлдэгдэл: **{user['balance']:,} \u20ae**", ephemeral=True
             )
             return
@@ -124,30 +124,30 @@ class Games(commands.Cog):
             result   = f"\u274c Таарсангүй! **-{bet:,} \u20ae**"
             color    = discord.Color.red()
 
-        await update_balance(interaction.user.id, interaction.guild_id, winnings)
-        await _update_game_stats(interaction.user.id, interaction.guild_id, bet, winnings)
+        await update_balance(ctx.author.id, ctx.guild.id, winnings)
+        await _update_game_stats(ctx.author.id, ctx.guild.id, bet, winnings)
         embed = discord.Embed(title="\U0001f3b0 Slot Machine", color=color)
         embed.add_field(name="Дүн",    value=f"[ {reels[0]} | {reels[1]} | {reels[2]} ]", inline=False)
         embed.add_field(name="Үр дүн", value=result, inline=False)
         embed.set_footer(text=f"Шинэ үлдэгдэл: {user['balance'] + winnings:,} \u20ae")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /coinflip  — nerfed to 1.7x (was 2x)
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="coinflip", description="Зоос шидэх — 50/50 | <500k=1.7x | 500k+=2x")
+    @commands.hybrid_command(name="coinflip", description="Зоос шидэх — 50/50 | <500k=1.7x | 500k+=2x")
     @app_commands.describe(choice="Таны сонголт", bet="Бооцооны дүн")
     @app_commands.choices(choice=[
         app_commands.Choice(name="\U0001f985 Толгой (Heads)", value="heads"),
         app_commands.Choice(name="\U0001fa99 Сүүл (Tails)",  value="tails"),
     ])
-    async def coinflip(self, interaction: discord.Interaction, choice: str, bet: int):
+    async def coinflip(self, ctx: commands.Context, choice: str, bet: int):
         if bet < 100:
-            await interaction.response.send_message("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
+            await ctx.send("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
             return
-        user = await get_user(interaction.user.id, interaction.guild_id)
+        user = await get_user(ctx.author.id, ctx.guild.id)
         if user["balance"] < bet:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"\u274c Мөнгө хүрэлцэхгүй! Үлдэгдэл: **{user['balance']:,} \u20ae**", ephemeral=True
             )
             return
@@ -168,32 +168,32 @@ class Games(commands.Cog):
             outcome  = f"\u274c Буруу! **-{bet:,} \u20ae**"
             color    = discord.Color.red()
 
-        await update_balance(interaction.user.id, interaction.guild_id, winnings)
-        await _update_game_stats(interaction.user.id, interaction.guild_id, bet, winnings)
+        await update_balance(ctx.author.id, ctx.guild.id, winnings)
+        await _update_game_stats(ctx.author.id, ctx.guild.id, bet, winnings)
         embed = discord.Embed(title="\U0001fa99 Зоос шидлээ!", color=color)
         embed.add_field(name="Таны сонголт",  value=labels[choice],  inline=True)
         embed.add_field(name="Үр дүн",        value=labels[result],  inline=True)
         embed.add_field(name="Ашиг/Алдагдал", value=outcome,         inline=False)
         embed.set_footer(text=f"Шинэ үлдэгдэл: {user['balance'] + winnings:,} \u20ae")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /rps
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="rps", description="Чулуу-Цаас-Хайч — bot-той тоглох")
+    @commands.hybrid_command(name="rps", description="Чулуу-Цаас-Хайч — bot-той тоглох")
     @app_commands.describe(choice="Таны сонголт", bet="Бооцооны дүн (хожвол 1.5x)")
     @app_commands.choices(choice=[
         app_commands.Choice(name="\U0001faa8 Чулуу",  value="rock"),
         app_commands.Choice(name="\U0001f4c4 Цаас",   value="paper"),
         app_commands.Choice(name="\u2702\ufe0f Хайч", value="scissors"),
     ])
-    async def rps(self, interaction: discord.Interaction, choice: str, bet: int):
+    async def rps(self, ctx: commands.Context, choice: str, bet: int):
         if bet < 100:
-            await interaction.response.send_message("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
+            await ctx.send("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
             return
-        user = await get_user(interaction.user.id, interaction.guild_id)
+        user = await get_user(ctx.author.id, ctx.guild.id)
         if user["balance"] < bet:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"\u274c Мөнгө хүрэлцэхгүй! Үлдэгдэл: **{user['balance']:,} \u20ae**", ephemeral=True
             )
             return
@@ -215,20 +215,20 @@ class Games(commands.Cog):
             outcome  = f"\u274c Та хожигдлоо! **-{bet:,} \u20ae**"
             color    = discord.Color.red()
 
-        await update_balance(interaction.user.id, interaction.guild_id, winnings)
-        await _update_game_stats(interaction.user.id, interaction.guild_id, bet, winnings)
+        await update_balance(ctx.author.id, ctx.guild.id, winnings)
+        await _update_game_stats(ctx.author.id, ctx.guild.id, bet, winnings)
         embed = discord.Embed(title="\u2702\ufe0f Чулуу-Цаас-Хайч", color=color)
         embed.add_field(name="Таны сонголт",  value=labels[choice],     inline=True)
         embed.add_field(name="Bot-н сонголт", value=labels[bot_choice], inline=True)
         embed.add_field(name="Үр дүн",        value=outcome,            inline=False)
         embed.set_footer(text=f"Шинэ үлдэгдэл: {user['balance'] + winnings:,} \u20ae")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /roulette  — nerfed: red/black/odd/even 2x->1.7x,
     #               green(0) 35x->25x, number 36x->30x
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="roulette", description="Рулетка — улаан/хар, сондгой/тэгш, ногоон, тоо (1–36)")
+    @commands.hybrid_command(name="roulette", description="Рулетка — улаан/хар, сондгой/тэгш, ногоон, тоо (1–36)")
     @app_commands.describe(bet_type="Таны тавил", bet="Бооцооны дүн", number="Тодорхой тоо (1–36)")
     @app_commands.choices(bet_type=[
         app_commands.Choice(name="\U0001f534 Улаан (Red)   — 1.7x",  value="red"),
@@ -238,22 +238,22 @@ class Games(commands.Cog):
         app_commands.Choice(name="\U0001f7e2 Ногоон (0)    — 25x",   value="green"),
         app_commands.Choice(name="\U0001f3af Тоо (1-36)    — 30x",   value="number"),
     ])
-    async def roulette(self, interaction: discord.Interaction,
+    async def roulette(self, ctx: commands.Context,
                        bet_type: str, bet: int,
                        number: int = None):
         if bet < 100:
-            await interaction.response.send_message("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
+            await ctx.send("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
             return
         if bet_type == "number":
             if number is None or not (1 <= number <= 36):
-                await interaction.response.send_message(
+                await ctx.send(
                     "\u274c `number` горимд 1–36 хооронд тоо оруулна уу!", ephemeral=True
                 )
                 return
 
-        user = await get_user(interaction.user.id, interaction.guild_id)
+        user = await get_user(ctx.author.id, ctx.guild.id)
         if user["balance"] < bet:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"\u274c Мөнгө хүрэлцэхгүй! Үлдэгдэл: **{user['balance']:,} \u20ae**", ephemeral=True
             )
             return
@@ -279,16 +279,21 @@ class Games(commands.Cog):
 
         if won:
             winnings   = int(bet * (mult - 1))
-            bonus_note = " 🔥 **Том бооцоо 2x!**" if big_bet and mult == 2.0 else ""
+            bonus_note = " \U0001f525 **Том бооцоо 2x!**" if big_bet and mult == 2.0 else ""
             outcome    = f"\u2705 Хожлоо! **+{winnings:,} \u20ae** ({mult}x){bonus_note}"
-            color      = discord.Color.green()
         else:
             winnings = -bet
             outcome  = f"\u274c Хожигдлоо! **-{bet:,} \u20ae**"
-            color    = discord.Color.red()
+        # Embed color reflects the landing pocket color
+        if spin == 0:
+            color = discord.Color.green()           # ногоон (0) — үргэлж ногоон
+        elif spin in ROULETTE_RED:
+            color = discord.Color.red() if won else discord.Color.dark_red()
+        else:
+            color = discord.Color.dark_gray() if won else discord.Color.from_rgb(30, 30, 30)
 
-        await update_balance(interaction.user.id, interaction.guild_id, winnings)
-        await _update_game_stats(interaction.user.id, interaction.guild_id, bet, winnings)
+        await update_balance(ctx.author.id, ctx.guild.id, winnings)
+        await _update_game_stats(ctx.author.id, ctx.guild.id, bet, winnings)
         embed = discord.Embed(title="\U0001f3a1 Рулетка", color=color)
         embed.add_field(name="\U0001f3b0 Унасан тоо", value=spin_label, inline=False)
         embed.add_field(name="Таны тавил",
@@ -296,19 +301,19 @@ class Games(commands.Cog):
                         inline=True)
         embed.add_field(name="Үр дүн", value=outcome, inline=True)
         embed.set_footer(text=f"Шинэ үлдэгдэл: {user['balance'] + winnings:,} \u20ae")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /shagai  — nerfed multipliers
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="shagai", description="Шагай шидэх — 4 шагай, Монгол уламжлалт тоглоом")
-    async def shagai(self, interaction: discord.Interaction, bet: int):
+    @commands.hybrid_command(name="shagai", description="Шагай шидэх — 4 шагай, Монгол уламжлалт тоглоом")
+    async def shagai(self, ctx: commands.Context, bet: int):
         if bet < 100:
-            await interaction.response.send_message("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
+            await ctx.send("\u274c Хамгийн бага бооцоо **100 \u20ae**!", ephemeral=True)
             return
-        user = await get_user(interaction.user.id, interaction.guild_id)
+        user = await get_user(ctx.author.id, ctx.guild.id)
         if user["balance"] < bet:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"\u274c Мөнгө хүрэлцэхгүй! Үлдэгдэл: **{user['balance']:,} \u20ae**", ephemeral=True
             )
             return
@@ -334,8 +339,8 @@ class Games(commands.Cog):
             outcome  = f"{desc}\n**-{bet:,} \u20ae**"
             color    = discord.Color.red()
 
-        await update_balance(interaction.user.id, interaction.guild_id, winnings)
-        await _update_game_stats(interaction.user.id, interaction.guild_id, bet, winnings)
+        await update_balance(ctx.author.id, ctx.guild.id, winnings)
+        await _update_game_stats(ctx.author.id, ctx.guild.id, bet, winnings)
 
         embed = discord.Embed(title="\U0001f9b4 Шагай", color=color)
         embed.add_field(name="4 Шагайн дүн", value=dice_display, inline=False)
@@ -360,21 +365,21 @@ class Games(commands.Cog):
             inline=False
         )
         embed.set_footer(text=f"Шинэ үлдэгдэл: {user['balance'] + winnings:,} \u20ae")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /battle
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="battle", description="Дайстай тулалдах RPG тулаан")
-    async def battle(self, interaction: discord.Interaction):
-        rpg = await get_rpg(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="battle", description="Дайстай тулалдах RPG тулаан")
+    async def battle(self, ctx: commands.Context):
+        rpg = await get_rpg(ctx.author.id, ctx.guild.id)
         if rpg["hp"] <= 0:
             embed = discord.Embed(
                 title="🚫 HP дууссан!",
                 description="❤️ Таны HP **0** байна. Тулалдах боломжгүй!\n\n💊 `/heal` командаар эмчлүүлээрэй.",
                 color=0x2b2d31
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await ctx.send(embed=embed, ephemeral=True)
             return
 
         enemy     = random.choice(ENEMIES).copy()
@@ -414,24 +419,24 @@ class Games(commands.Cog):
                     SELECT i.item_id, i.quantity, s.name, s.effect_value
                     FROM inventory i JOIN shop s ON i.item_id = s.item_id
                     WHERE i.user_id=? AND i.guild_id=? AND s.item_type=?
-                """, (interaction.user.id, interaction.guild_id, eq_type))
+                """, (ctx.author.id, ctx.guild.id, eq_type))
                 eq_row = await cur2.fetchone()
                 if eq_row:
                     new_qty = eq_row["quantity"] - 1
                     if new_qty <= 0:
                         await db.execute(
                             "DELETE FROM inventory WHERE item_id=? AND user_id=? AND guild_id=?",
-                            (eq_row["item_id"], interaction.user.id, interaction.guild_id)
+                            (eq_row["item_id"], ctx.author.id, ctx.guild.id)
                         )
                         await db.execute(
                             f"UPDATE rpg SET {stat_col}=?, {name_col}=? WHERE user_id=? AND guild_id=?",
-                            (default_stat, default_name, interaction.user.id, interaction.guild_id)
+                            (default_stat, default_name, ctx.author.id, ctx.guild.id)
                         )
                         durability_notes.append(f"💔 **{eq_row['name']}** эвдэрлээ!")
                     else:
                         await db.execute(
                             "UPDATE inventory SET quantity=? WHERE item_id=? AND user_id=? AND guild_id=?",
-                            (new_qty, eq_row["item_id"], interaction.user.id, interaction.guild_id)
+                            (new_qty, eq_row["item_id"], ctx.author.id, ctx.guild.id)
                         )
                         if new_qty <= 3:
                             durability_notes.append(f"⚠️ **{eq_row['name']}** эдэлгээ: **{new_qty}** тулаан үлдлээ")
@@ -439,15 +444,15 @@ class Games(commands.Cog):
 
         if enemy["hp"] <= 0:
             reward = random.randint(enemy["reward_min"], enemy["reward_max"])
-            await update_balance(interaction.user.id, interaction.guild_id, reward)
+            await update_balance(ctx.author.id, ctx.guild.id, reward)
             new_hp = max(1, player_hp)
             async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute(
                     "UPDATE rpg SET hp=?, kills=kills+1 WHERE user_id=? AND guild_id=?",
-                    (new_hp, interaction.user.id, interaction.guild_id)
+                    (new_hp, ctx.author.id, ctx.guild.id)
                 )
                 await db.commit()
-            rpg2       = await get_rpg(interaction.user.id, interaction.guild_id)
+            rpg2       = await get_rpg(ctx.author.id, ctx.guild.id)
             total_kills = rpg2.get("kills", 1)
             bar_now    = hp_bar(new_hp, max_hp)
             embed = discord.Embed(
@@ -466,7 +471,7 @@ class Games(commands.Cog):
             async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute(
                     "UPDATE rpg SET hp=0 WHERE user_id=? AND guild_id=?",
-                    (interaction.user.id, interaction.guild_id)
+                    (ctx.author.id, ctx.guild.id)
                 )
                 await db.commit()
             bar_dead = hp_bar(0, max_hp)
@@ -491,18 +496,18 @@ class Games(commands.Cog):
                 value="\n".join(durability_notes),
                 inline=False
             )
-        embed.set_footer(text=f"⚔️ {interaction.user.display_name}  •  {enemy['name']}")
-        await interaction.response.send_message(embed=embed)
+        embed.set_footer(text=f"⚔️ {ctx.author.display_name}  •  {enemy['name']}")
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /heal  — checks if HP is already full
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="heal", description="HP-г бүрэн сэргээх (inventory-аас эмчилгээ ашиглана)")
-    async def heal(self, interaction: discord.Interaction):
+    @commands.hybrid_command(name="heal", description="HP-г бүрэн сэргээх (inventory-аас эмчилгээ ашиглана)")
+    async def heal(self, ctx: commands.Context):
         # First check current HP
-        rpg = await get_rpg(interaction.user.id, interaction.guild_id)
+        rpg = await get_rpg(ctx.author.id, ctx.guild.id)
         if rpg["hp"] >= rpg["max_hp"]:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"\u2764\ufe0f Таны HP аль хэдийн **{rpg['hp']}/{rpg['max_hp']}** дүүрэн байна!\n"
                 "Эмчилгээ зарцуулахгүй.",
                 ephemeral=True
@@ -515,11 +520,11 @@ class Games(commands.Cog):
                 SELECT i.item_id, i.quantity FROM inventory i
                 JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=? AND s.item_type='heal'
-            """, (interaction.user.id, interaction.guild_id))
+            """, (ctx.author.id, ctx.guild.id))
             heal_item = await cursor.fetchone()
 
         if not heal_item:
-            await interaction.response.send_message(
+            await ctx.send(
                 "\u274c Эмчилгээ байхгүй байна! `/shop other` дээрээс авна уу.", ephemeral=True
             )
             return
@@ -527,17 +532,17 @@ class Games(commands.Cog):
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE rpg SET hp=max_hp WHERE user_id=? AND guild_id=?",
-                (interaction.user.id, interaction.guild_id)
+                (ctx.author.id, ctx.guild.id)
             )
             if heal_item["quantity"] > 1:
                 await db.execute(
                     "UPDATE inventory SET quantity=quantity-1 WHERE item_id=? AND user_id=? AND guild_id=?",
-                    (heal_item["item_id"], interaction.user.id, interaction.guild_id)
+                    (heal_item["item_id"], ctx.author.id, ctx.guild.id)
                 )
             else:
                 await db.execute(
                     "DELETE FROM inventory WHERE item_id=? AND user_id=? AND guild_id=?",
-                    (heal_item["item_id"], interaction.user.id, interaction.guild_id)
+                    (heal_item["item_id"], ctx.author.id, ctx.guild.id)
                 )
             await db.commit()
 
@@ -546,17 +551,17 @@ class Games(commands.Cog):
             description=f"HP **{rpg['max_hp']}** болж сэргэлээ!",
             color=discord.Color.green()
         )
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /rpg  — RPG status
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="rpg", description="RPG тоглогчийн статусыг харах")
-    async def rpg_status(self, interaction: discord.Interaction):
-        rpg = await get_rpg(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="rpg", description="RPG тоглогчийн статусыг харах")
+    async def rpg_status(self, ctx: commands.Context):
+        rpg = await get_rpg(ctx.author.id, ctx.guild.id)
         hp_bar = "\u2665" * (rpg["hp"] // 10) + "\u2661" * ((rpg["max_hp"] - rpg["hp"]) // 10)
         embed = discord.Embed(
-            title=f"\u2694\ufe0f {interaction.user.display_name}-н RPG статус",
+            title=f"\u2694\ufe0f {ctx.author.display_name}-н RPG статус",
             color=discord.Color.purple()
         )
         embed.add_field(name="\u2764\ufe0f HP",        value=f"**{rpg['hp']}/{rpg['max_hp']}**\n{hp_bar}", inline=False)
@@ -564,9 +569,9 @@ class Games(commands.Cog):
         embed.add_field(name="\U0001f6e1\ufe0f Хамгаалалт", value=f"**{rpg['defense']}**", inline=True)
         embed.add_field(name="\U0001f5e1\ufe0f Зэвсэг", value=f"**{rpg['weapon']}**",  inline=True)
         embed.add_field(name="\U0001f9e5 Хуяг",         value=f"**{rpg['armor']}**",   inline=True)
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.set_footer(text="/battle тулалдах  •  /heal эмчлэх  •  /shop other зэвсэг авах")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
 
     # ══════════════════════════════════════════════════════
@@ -574,9 +579,9 @@ class Games(commands.Cog):
     # ══════════════════════════════════════════════════════════
     #  /rlb  — RPG kills leaderboard
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="rlb", description="Дайчдын самбар — хамгийн их алуулсан топ жагсаалт")
-    async def rlb(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+    @commands.hybrid_command(name="rlb", description="Дайчдын самбар — хамгийн их алуулсан топ жагсаалт")
+    async def rlb(self, ctx: commands.Context):
+        await ctx.defer()
 
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
@@ -585,7 +590,7 @@ class Games(commands.Cog):
                 FROM rpg r
                 WHERE r.guild_id=? AND r.kills > 0
                 ORDER BY r.kills DESC LIMIT 15
-            """, (interaction.guild_id,))
+            """, (ctx.guild.id,))
             rows = await cursor.fetchall()
 
         if not rows:
@@ -594,7 +599,7 @@ class Games(commands.Cog):
                 description="⚠️ Одоо хэн алуулга байхгүй байна. `/battle` тоглоод эхлээ!",
                 color=0x5865f2
             )
-            await interaction.followup.send(embed=embed)
+            await ctx.send(embed=embed)
             return
 
         def get_title(rank):
@@ -617,7 +622,7 @@ class Games(commands.Cog):
         lines = []
         for i, row in enumerate(rows):
             rank  = i + 1
-            member = interaction.guild.get_member(row["user_id"])
+            member = ctx.guild.get_member(row["user_id"])
             name   = (member.display_name if member else f"ID:{row['user_id']}")[:16]
             kills = row["kills"]
             bar   = kill_bar(kills, top_kills)
@@ -649,7 +654,7 @@ class Games(commands.Cog):
         if col2:
             embed.add_field(name="​", value=col2, inline=True)
         embed.set_footer(text=f"\U0001f480 Нийт {len(rows)} дайчин  •  /battle тоглоод эрэмжлэлээ!")
-        await interaction.followup.send(embed=embed)
+        await ctx.send(embed=embed)
 
 
 async def setup(bot):

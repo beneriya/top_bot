@@ -20,10 +20,10 @@ class Economy(commands.Cog):
         self.bot = bot
 
     # ── Баланс харах ──────────────────────────────────────────
-    @app_commands.command(name="balance", description="Өөрийн төгрөгийн үлдэгдлийг харах")
-    async def balance(self, interaction: discord.Interaction, member: discord.Member = None):
-        target = member or interaction.user
-        user = await get_user(target.id, interaction.guild_id)
+    @commands.hybrid_command(name="balance", description="Өөрийн төгрөгийн үлдэгдлийг харах")
+    async def balance(self, ctx: commands.Context, member: discord.Member = None):
+        target = member or ctx.author
+        user = await get_user(target.id, ctx.guild.id)
         bank_bal = user.get("bank", 0) or 0
         total = user['balance'] + bank_bal
         def _bar(a, b, length=10):
@@ -42,21 +42,21 @@ class Economy(commands.Cog):
         embed.add_field(name="🏦 Bank",    value=f"**{bank_bal:,} ₮**",           inline=True)
         embed.add_field(name="💎 Нийт",    value=f"**{total:,} ₮**",              inline=True)
         embed.set_footer(text=f"TOP Bot  •  /balance")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
         embed.add_field(name="💵 Pocket",  value=f"**{user['balance']:,} ₮**",    inline=True)
         embed.add_field(name="🏦 Bank",    value=f"**{bank_bal:,} ₮**",           inline=True)
         embed.add_field(name="💎 Нийт",    value=f"**{total:,} ₮**",              inline=True)
         embed.set_footer(text=f"TOP Bot  •  /balance")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── Ажил хийж мөнгө олох ──────────────────────────────────
-    @app_commands.command(name="work", description="Ажил хийж төгрөг олох (30 минут тутамд)")
-    async def work(self, interaction: discord.Interaction):
+    @commands.hybrid_command(name="work", description="Ажил хийж төгрөг олох (30 минут тутамд)")
+    async def work(self, ctx: commands.Context):
         # 1. Дүр шалгах
-        char = await get_char(interaction.user.id, interaction.guild_id)
+        char = await get_char(ctx.author.id, ctx.guild.id)
         if not char:
-            await interaction.response.send_message(
+            await ctx.send(
                 "🎭 Эхлээд `/register` командаар дүр үүсгэнэ үү!", ephemeral=True
             )
             return
@@ -65,21 +65,21 @@ class Economy(commands.Cog):
 
         # 2. Нас барсан эсэх
         if age >= char["death_age"]:
-            await interaction.response.send_message(
+            await ctx.send(
                 "💀 Таны дүр нас барсан! `/register` командаар шинэ дүр үүсгэнэ үү.", ephemeral=True
             )
             return
 
         # 3. Насны шаардлага
         if age < WORK_MIN_AGE:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"🚫 Та **{age} настай** байна. {WORK_MIN_AGE} наснаас ажилладаг!", ephemeral=True
             )
             return
 
         # 4. Ажил сонгосон эсэх
         if not char["job_id"] or char["job_id"] not in JOBS:
-            await interaction.response.send_message(
+            await ctx.send(
                 "💼 Ажил сонгоогүй байна! `/setjob` командаар ажил сонгоно уу.", ephemeral=True
             )
             return
@@ -89,7 +89,7 @@ class Economy(commands.Cog):
         # 5. Cooldown — атомик шалгалт (race condition-с хамгаалах)
         now    = datetime.utcnow()
         cutoff = (now - timedelta(minutes=WORK_COOLDOWN_MINUTES)).isoformat()
-        uid, gid = interaction.user.id, interaction.guild_id
+        uid, gid = ctx.author.id, ctx.guild.id
 
         await get_user(uid, gid)   # user бүртгэл байгааг баталгаажуулах
 
@@ -113,7 +113,7 @@ class Economy(commands.Cog):
                 remaining = timedelta(minutes=WORK_COOLDOWN_MINUTES) - (now - last)
                 mins = int(remaining.total_seconds() // 60)
                 secs = int(remaining.total_seconds() % 60)
-                await interaction.response.send_message(
+                await ctx.send(
                     f"⏳ Дараагийн ажилд **{mins}м {secs}с** хүлээнэ үү!", ephemeral=True
                 )
                 return
@@ -165,7 +165,7 @@ class Economy(commands.Cog):
             description=f'*"{work_msg}"*',
             color=0x57F287
         )
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.add_field(name="💰 Олсон",      value=f"**+{earned:,} ₮**",   inline=True)
         embed.add_field(name="💼 Мэргэжил",   value=f"**{job['name_mn']}**", inline=True)
         embed.add_field(name="🎂 Нас",         value=f"**{age} нас**",        inline=True)
@@ -188,12 +188,12 @@ class Economy(commands.Cog):
                 inline=True
             )
         embed.set_footer(text=f"TOP Bot  •  /work  •  30 минут тутамд")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── Өдөр тутмын урамшуулал ────────────────────────────────
-    @app_commands.command(name="daily", description="Өдөр тутмын урамшуулал авах")
-    async def daily(self, interaction: discord.Interaction):
-        user = await get_user(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="daily", description="Өдөр тутмын урамшуулал авах")
+    async def daily(self, ctx: commands.Context):
+        user = await get_user(ctx.author.id, ctx.guild.id)
         now = datetime.utcnow()
 
         if user["last_daily"]:
@@ -203,7 +203,7 @@ class Economy(commands.Cog):
                 remaining = timedelta(hours=DAILY_COOLDOWN_HOURS) - diff
                 hours = int(remaining.total_seconds() // 3600)
                 mins = int((remaining.total_seconds() % 3600) // 60)
-                await interaction.response.send_message(
+                await ctx.send(
                     f"⏳ Дараагийн урамшуулалд **{hours}ц {mins}м** хүлээнэ үү!", ephemeral=True
                 )
                 return
@@ -212,7 +212,7 @@ class Economy(commands.Cog):
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE users SET balance=balance+?, last_daily=? WHERE user_id=? AND guild_id=?",
-                (reward, now.isoformat(), interaction.user.id, interaction.guild_id)
+                (reward, now.isoformat(), ctx.author.id, ctx.guild.id)
             )
             await db.commit()
 
@@ -221,56 +221,56 @@ class Economy(commands.Cog):
             description=f"**+{reward:,} ₮** авлаа! 🌟\nМаргааш дахиад ирнэ үү.",
             color=0xFEE75C
         )
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.set_footer(text="TOP Bot  •  /daily  •  24 цаг тутамд")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── Мөнгө шилжүүлэх ───────────────────────────────────────
-    @app_commands.command(name="transfer", description="Өөр хүнд мөнгө шилжүүлэх")
-    async def transfer(self, interaction: discord.Interaction, member: discord.Member, amount: int):
+    @commands.hybrid_command(name="transfer", description="Өөр хүнд мөнгө шилжүүлэх")
+    async def transfer(self, ctx: commands.Context, member: discord.Member, amount: int):
         if amount <= 0:
-            await interaction.response.send_message("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
+            await ctx.send("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
             return
-        if member.id == interaction.user.id:
-            await interaction.response.send_message("❌ Өөртөө шилжүүлэх боломжгүй!", ephemeral=True)
+        if member.id == ctx.author.id:
+            await ctx.send("❌ Өөртөө шилжүүлэх боломжгүй!", ephemeral=True)
             return
 
-        sender = await get_user(interaction.user.id, interaction.guild_id)
+        sender = await get_user(ctx.author.id, ctx.guild.id)
         if sender["balance"] < amount:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Хүрэлцэхгүй байна! Таны үлдэгдэл: **{sender['balance']:,} ₮**", ephemeral=True
             )
             return
 
-        await update_balance(interaction.user.id, interaction.guild_id, -amount)
-        await update_balance(member.id, interaction.guild_id, amount)
+        await update_balance(ctx.author.id, ctx.guild.id, -amount)
+        await update_balance(member.id, ctx.guild.id, amount)
 
         embed = discord.Embed(
             title="💸 Шилжүүлэг амжилттай!",
             description=f"**{amount:,} ₮**-ийг {member.mention}-д шилжүүллээ!",
             color=discord.Color.blue()
         )
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── /givemoney (Admin) ────────────────────────────────────
-    @app_commands.command(name="givemoney", description="Хэрэглэгчид мөнгө өгөх [Admin]")
+    @commands.hybrid_command(name="givemoney", description="Хэрэглэгчид мөнгө өгөх [Admin]")
     @app_commands.checks.has_permissions(administrator=True)
-    async def givemoney(self, interaction: discord.Interaction, member: discord.Member, amount: int):
+    async def givemoney(self, ctx: commands.Context, member: discord.Member, amount: int):
         if amount <= 0:
-            await interaction.response.send_message("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
+            await ctx.send("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
             return
-        await update_balance(member.id, interaction.guild_id, amount)
+        await update_balance(member.id, ctx.guild.id, amount)
         embed = discord.Embed(
             title="💸 Admin — Мөнгө нэмлээ",
             description=f"{member.mention}-д **{amount:,} ₮** нэмэгдлээ.",
             color=discord.Color.green()
         )
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     @givemoney.error
-    async def givemoney_error(self, interaction: discord.Interaction, error):
+    async def givemoney_error(self, ctx: commands.Context, error):
         if isinstance(error, app_commands.MissingPermissions):
-            await interaction.response.send_message("❌ Зөвхөн Admin хэрэглэх боломжтой!", ephemeral=True)
+            await ctx.send("❌ Зөвхөн Admin хэрэглэх боломжтой!", ephemeral=True)
 
     # ── Category keyword map (шууд текст оруулахад ажиллана) ────
     CATEGORY_ALIASES = {
@@ -294,7 +294,7 @@ class Economy(commands.Cog):
     }
 
     # ── Дэлгүүр харах (категориор) ────────────────────────────
-    @app_commands.command(name="shop", description="Дэлгүүрийн барааг харах  /shop gem · /shop alcohol · хоосон=бүгд")
+    @commands.hybrid_command(name="shop", description="Дэлгүүрийн барааг харах  /shop gem · /shop alcohol · хоосон=бүгд")
     @app_commands.describe(category="Категори сонгоно үү")
     @app_commands.choices(category=[
         app_commands.Choice(name="🍺 Архи",                value="alcohol"),
@@ -308,7 +308,7 @@ class Economy(commands.Cog):
         app_commands.Choice(name="⚔️ Тоглоом/Бусад",     value="other"),
         app_commands.Choice(name="🍽️ Хоол/Идэш",         value="food"),
     ])
-    async def shop(self, interaction: discord.Interaction, category: str = None):
+    async def shop(self, ctx: commands.Context, category: str = None):
         OTHER_TYPES = ("weapon", "armor", "heal", "ticket", "adoption")
 
         # Category comes as plain string from choices decorator
@@ -332,7 +332,7 @@ class Economy(commands.Cog):
                     inline=False
                 )
             embed.set_footer(text="/buyhouse командаар авна уу  •  зарахдаа /sellhouse")
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
             return
 
         async with aiosqlite.connect(DB_PATH) as db:
@@ -381,28 +381,28 @@ class Economy(commands.Cog):
                 embed.add_field(name="​", value=chunk, inline=False)
 
         embed.set_footer(text="/buy <ID> командаар авна уу  •  категори сонгоход нарийвчилсан жагсаалт харагдана")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── Бараа худалдаж авах ────────────────────────────────────
-    @app_commands.command(name="buy", description="Дэлгүүрээс бараа авах  —  /buy 93  эсвэл  /buy 93 10")
+    @commands.hybrid_command(name="buy", description="Дэлгүүрээс бараа авах  —  /buy 93  эсвэл  /buy 93 10")
     @app_commands.describe(args="ID [тоо]  —  жишээ: '93'  эсвэл  '93 10'  (10ш авна, max 100)")
-    async def buy(self, interaction: discord.Interaction, args: str):
+    async def buy(self, ctx: commands.Context, args: str):
         # args parse: "item_id [quantity]"
         parts = args.strip().split()
         try:
             item_id  = int(parts[0])
             quantity = int(parts[1]) if len(parts) > 1 else 1
         except (ValueError, IndexError):
-            await interaction.response.send_message(
+            await ctx.send(
                 "❌ Буруу формат! `/buy 93` эсвэл `/buy 93 10` гэж бичнэ үү.", ephemeral=True
             )
             return
 
         if quantity < 1:
-            await interaction.response.send_message("❌ Тоо 1-с их байх ёстой!", ephemeral=True)
+            await ctx.send("❌ Тоо 1-с их байх ёстой!", ephemeral=True)
             return
         if quantity > 100:
-            await interaction.response.send_message("❌ Нэг удаад хамгийн ихдээ **100** авч болно!", ephemeral=True)
+            await ctx.send("❌ Нэг удаад хамгийн ихдээ **100** авч болно!", ephemeral=True)
             return
 
         async with aiosqlite.connect(DB_PATH) as db:
@@ -411,12 +411,12 @@ class Economy(commands.Cog):
             item = await cursor.fetchone()
 
         if not item:
-            await interaction.response.send_message("❌ Ийм бараа олдсонгүй!", ephemeral=True)
+            await ctx.send("❌ Ийм бараа олдсонгүй!", ephemeral=True)
             return
 
         # Weapon/armor нэгийг л авна — quantity=1 хязгаарлах
         if item["item_type"] in ("weapon", "armor") and quantity > 1:
-            await interaction.response.send_message(
+            await ctx.send(
                 "⚔️ Зэвсэг/хуягыг нэг нэгээр авна уу (тоглолтод нэг л ашиглагдана).", ephemeral=True
             )
             return
@@ -424,15 +424,15 @@ class Economy(commands.Cog):
 
         # 18 насны хязгаар — архи, тамхи, вэйп
         if item["item_type"] in ("alcohol", "cigarette", "vape"):
-            char = await get_char(interaction.user.id, interaction.guild_id)
+            char = await get_char(ctx.author.id, ctx.guild.id)
             if not char:
-                await interaction.response.send_message(
+                await ctx.send(
                     "🎭 Эхлээд `/register` командаар дүр үүсгэнэ үү!", ephemeral=True
                 )
                 return
             age = calc_age(dict(char))
             if age < 18:
-                await interaction.response.send_message(
+                await ctx.send(
                     f"🔞 **{item['emoji']} {item['name']}** зарахгүй!\n"
                     f"Та **{age} настай** байна. 18 наснаас дээш хүнд л зарна.",
                     ephemeral=True
@@ -440,19 +440,19 @@ class Economy(commands.Cog):
                 return
 
         total_price = item["price"] * quantity
-        user        = await get_user(interaction.user.id, interaction.guild_id)
+        user        = await get_user(ctx.author.id, ctx.guild.id)
 
         if user["balance"] < total_price:
             can_afford = user["balance"] // item["price"]
             hint = f"\n💡 Та хамгийн ихдээ **{can_afford}ш** авах боломжтой." if can_afford > 0 and quantity > 1 else ""
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Мөнгө хүрэлцэхгүй!\n"
                 f"Хэрэгтэй: **{total_price:,} ₮**  |  Таных: **{user['balance']:,} ₮**{hint}",
                 ephemeral=True
             )
             return
 
-        await update_balance(interaction.user.id, interaction.guild_id, -total_price)
+        await update_balance(ctx.author.id, ctx.guild.id, -total_price)
 
         # Inventory-д нэмэх (weapon/armor: эдэлгээ = quantity болно)
         WEAPON_DURABILITY = 10  # 10 тулаан тэсвэрлэнэ
@@ -465,18 +465,18 @@ class Economy(commands.Cog):
 
             cursor = await db.execute(
                 "SELECT quantity FROM inventory WHERE user_id=? AND guild_id=? AND item_id=?",
-                (interaction.user.id, interaction.guild_id, item_id)
+                (ctx.author.id, ctx.guild.id, item_id)
             )
             existing = await cursor.fetchone()
             if existing:
                 await db.execute(
                     "UPDATE inventory SET quantity=quantity+? WHERE user_id=? AND guild_id=? AND item_id=?",
-                    (inv_qty, interaction.user.id, interaction.guild_id, item_id)
+                    (inv_qty, ctx.author.id, ctx.guild.id, item_id)
                 )
             else:
                 await db.execute(
                     "INSERT INTO inventory (user_id, guild_id, item_id, quantity) VALUES (?,?,?,?)",
-                    (interaction.user.id, interaction.guild_id, item_id, inv_qty)
+                    (ctx.author.id, ctx.guild.id, item_id, inv_qty)
                 )
 
             # ── Weapon/armor → RPG-д шууд тоноглох ───────────────
@@ -484,23 +484,23 @@ class Economy(commands.Cog):
             if item["item_type"] == "weapon":
                 await db.execute(
                     "INSERT OR IGNORE INTO rpg (user_id, guild_id) VALUES (?,?)",
-                    (interaction.user.id, interaction.guild_id)
+                    (ctx.author.id, ctx.guild.id)
                 )
                 await db.execute(
                     "UPDATE rpg SET attack=?, weapon=? WHERE user_id=? AND guild_id=?",
                     (10 + item["effect_value"], item["name"],
-                     interaction.user.id, interaction.guild_id)
+                     ctx.author.id, ctx.guild.id)
                 )
                 equip_note = f"\n⚔️ Дайралт **+{item['effect_value']}** нэмэгдлээ! (эдэлгээ: {WEAPON_DURABILITY} тулаан)"
             elif item["item_type"] == "armor":
                 await db.execute(
                     "INSERT OR IGNORE INTO rpg (user_id, guild_id) VALUES (?,?)",
-                    (interaction.user.id, interaction.guild_id)
+                    (ctx.author.id, ctx.guild.id)
                 )
                 await db.execute(
                     "UPDATE rpg SET defense=?, armor=? WHERE user_id=? AND guild_id=?",
                     (5 + item["effect_value"], item["name"],
-                     interaction.user.id, interaction.guild_id)
+                     ctx.author.id, ctx.guild.id)
                 )
                 equip_note = f"\n🛡️ Хамгаалалт **+{item['effect_value']}** нэмэгдлээ! (эдэлгээ: {WEAPON_DURABILITY} тулаан)"
             await db.commit()
@@ -515,22 +515,22 @@ class Economy(commands.Cog):
             color=discord.Color.green()
         )
         embed.set_footer(text=f"Үлдэгдэл: {user['balance'] - total_price:,} ₮")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── Inventory харах ────────────────────────────────────────
-    @app_commands.command(name="inventory", description="Өөрийн inventory харах")
-    async def inventory(self, interaction: discord.Interaction):
+    @commands.hybrid_command(name="inventory", description="Өөрийн inventory харах")
+    async def inventory(self, ctx: commands.Context):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute("""
                 SELECT s.name, s.emoji, s.item_type, i.quantity, i.item_id
                 FROM inventory i JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=?
-            """, (interaction.user.id, interaction.guild_id))
+            """, (ctx.author.id, ctx.guild.id))
             items = await cursor.fetchall()
 
         embed = discord.Embed(
-            title=f"🎒 {interaction.user.display_name}-н зүйлс",
+            title=f"🎒 {ctx.author.display_name}-н зүйлс",
             color=discord.Color.orange()
         )
         if not items:
@@ -546,21 +546,21 @@ class Economy(commands.Cog):
                     value=f"ID: `{item['item_id']}`",
                     inline=True
                 )
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── Баянчуудын жагсаалт ───────────────────────────────────
-    @app_commands.command(name="richlist", description="Серверийн хамгийн баян хүмүүс")
-    async def richlist(self, interaction: discord.Interaction):
+    @commands.hybrid_command(name="richlist", description="Серверийн хамгийн баян хүмүүс")
+    async def richlist(self, ctx: commands.Context):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 "SELECT user_id, balance FROM users WHERE guild_id=? ORDER BY balance DESC LIMIT 10",
-                (interaction.guild_id,)
+                (ctx.guild.id,)
             )
             rows = await cursor.fetchall()
 
         if not rows:
-            await interaction.response.send_message("⚠️ Мэдээлэл байхгүй байна.", ephemeral=True)
+            await ctx.send("⚠️ Мэдээлэл байхгүй байна.", ephemeral=True)
             return
         top_bal = rows[0]["balance"] or 1
         medals  = ["🥇", "🥈", "🥉"]
@@ -569,7 +569,7 @@ class Economy(commands.Cog):
             return "▰" * filled + "▱" * (length - filled)
         lines = []
         for i, row in enumerate(rows):
-            m   = interaction.guild.get_member(row["user_id"])
+            m   = ctx.guild.get_member(row["user_id"])
             nm  = (m.display_name if m else f"User#{row['user_id']}")[:16]
             med = medals[i] if i < 3 else f"`#{i+1:>2}`"
             bar = rbar(row["balance"], top_bal)
@@ -581,21 +581,21 @@ class Economy(commands.Cog):
             color=0xF1C40F
         )
         embed.set_footer(text=f"TOP Bot  •  /richlist  •  Pocket үлдэгдлээр эрэмбэлсэн")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  BANK COMMANDS
     # ══════════════════════════════════════════════════════════
 
-    @app_commands.command(name="deposit", description="Мөнгөө банкинд хадгалах (pocket → bank)")
-    async def deposit(self, interaction: discord.Interaction, amount: int):
+    @commands.hybrid_command(name="deposit", description="Мөнгөө банкинд хадгалах (pocket → bank)")
+    async def deposit(self, ctx: commands.Context, amount: int):
         if amount <= 0:
-            await interaction.response.send_message("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
+            await ctx.send("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
             return
-        uid, gid = interaction.user.id, interaction.guild_id
+        uid, gid = ctx.author.id, ctx.guild.id
         user = await get_user(uid, gid)
         if user["balance"] < amount:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Pocket-д хүрэлцэхгүй! Pocket: **{user['balance']:,} ₮**", ephemeral=True
             )
             return
@@ -612,18 +612,18 @@ class Economy(commands.Cog):
         )
         embed.add_field(name="\U0001f4b5 Pocket", value=f"**{user['balance']-amount:,} ₮**", inline=True)
         embed.add_field(name="\U0001f3e6 Bank",   value=f"**{(user.get('bank',0)+amount):,} ₮**", inline=True)
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
-    @app_commands.command(name="withdraw", description="Банкнаас мөнгөө гаргах (bank → pocket)")
-    async def withdraw(self, interaction: discord.Interaction, amount: int):
+    @commands.hybrid_command(name="withdraw", description="Банкнаас мөнгөө гаргах (bank → pocket)")
+    async def withdraw(self, ctx: commands.Context, amount: int):
         if amount <= 0:
-            await interaction.response.send_message("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
+            await ctx.send("❌ Дүн 0-с их байх ёстой!", ephemeral=True)
             return
-        uid, gid = interaction.user.id, interaction.guild_id
+        uid, gid = ctx.author.id, ctx.guild.id
         user = await get_user(uid, gid)
         bank_bal = user.get("bank", 0) or 0
         if bank_bal < amount:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Банкинд хүрэлцэхгүй! Bank: **{bank_bal:,} ₮**", ephemeral=True
             )
             return
@@ -640,12 +640,12 @@ class Economy(commands.Cog):
         )
         embed.add_field(name="\U0001f4b5 Pocket", value=f"**{user['balance']+amount:,} ₮**", inline=True)
         embed.add_field(name="\U0001f3e6 Bank",   value=f"**{bank_bal-amount:,} ₮**", inline=True)
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
-    @app_commands.command(name="bank", description="Банкны данс болон нийт хөрөнгийг харах")
-    async def bank_info(self, interaction: discord.Interaction, member: discord.Member = None):
-        target = member or interaction.user
-        uid, gid = target.id, interaction.guild_id
+    @commands.hybrid_command(name="bank", description="Банкны данс болон нийт хөрөнгийг харах")
+    async def bank_info(self, ctx: commands.Context, member: discord.Member = None):
+        target = member or ctx.author
+        uid, gid = target.id, ctx.guild.id
         user = await get_user(uid, gid)
         pocket = user["balance"]
         bank   = user.get("bank", 0) or 0
@@ -672,15 +672,15 @@ class Economy(commands.Cog):
         embed.add_field(name="\U0001f392 Inventory",  value=f"**{inv_val:,} ₮**", inline=True)
         embed.add_field(name="\U0001f4b0 Нийт хөрөнгө", value=f"**{total:,} ₮**", inline=False)
         embed.set_footer(text="/deposit хийж банкинд хадгал  •  /withdraw гаргах")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /eat  — consume food item, raise happiness
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="eat", description="Хоол идэж аз жаргалын түвшнийг нэмэгдүүлэх")
+    @commands.hybrid_command(name="eat", description="Хоол идэж аз жаргалын түвшнийг нэмэгдүүлэх")
     @app_commands.describe(item_id="Хоолны барааны ID (/shop food-оос харна уу)")
-    async def eat(self, interaction: discord.Interaction, item_id: int):
-        uid, gid = interaction.user.id, interaction.guild_id
+    async def eat(self, ctx: commands.Context, item_id: int):
+        uid, gid = ctx.author.id, ctx.guild.id
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cur = await db.execute("""
@@ -691,7 +691,7 @@ class Economy(commands.Cog):
             food = await cur.fetchone()
 
         if not food:
-            await interaction.response.send_message(
+            await ctx.send(
                 "❌ Inventory-д тийм хоол байхгүй! `/shop food` дээрээс аваад ирнэ үү.", ephemeral=True
             )
             return
@@ -723,7 +723,7 @@ class Economy(commands.Cog):
                 ),
                 color=discord.Color.red()
             )
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
             return
 
         # Cap at 20 without penalty
@@ -755,20 +755,20 @@ class Economy(commands.Cog):
         embed.add_field(name="😊 Аз жаргал", value=f"**{new_hap}/20**\n{h_bar}", inline=False)
         if new_hap == 20:
             embed.set_footer(text="⚠️ Аз жаргал 20/20 дүүрэн! Дахин идвэл эрүүл мэнд хохирно.")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /rob  — steal from pocket
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="rob", description="Бусдын pocket-аас хулгай хийх (1 цаг cooldown)")
+    @commands.hybrid_command(name="rob", description="Бусдын pocket-аас хулгай хийх (1 цаг cooldown)")
     @app_commands.describe(member="Хулгайлах хүн")
-    async def rob(self, interaction: discord.Interaction, member: discord.Member):
-        uid, gid = interaction.user.id, interaction.guild_id
+    async def rob(self, ctx: commands.Context, member: discord.Member):
+        uid, gid = ctx.author.id, ctx.guild.id
         if member.id == uid:
-            await interaction.response.send_message("❌ Өөрөөсөө хулгай хийх боломжгүй!", ephemeral=True)
+            await ctx.send("❌ Өөрөөсөө хулгай хийх боломжгүй!", ephemeral=True)
             return
         if member.bot:
-            await interaction.response.send_message("❌ Bot-оос хулгай хийх боломжгүй!", ephemeral=True)
+            await ctx.send("❌ Bot-оос хулгай хийх боломжгүй!", ephemeral=True)
             return
 
         now = datetime.utcnow()
@@ -781,7 +781,7 @@ class Economy(commands.Cog):
             if remaining.total_seconds() > 0:
                 mins = int(remaining.total_seconds() // 60)
                 secs = int(remaining.total_seconds() % 60)
-                await interaction.response.send_message(
+                await ctx.send(
                     f"⏳ Rob cooldown: **{mins}м {secs}с** хүлээнэ үү!", ephemeral=True
                 )
                 return
@@ -790,7 +790,7 @@ class Economy(commands.Cog):
         v_pocket = victim["balance"]
 
         if v_pocket <= 0:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"\U0001f45b {member.display_name}-н pocket хоосон байна. Өөр хүнийг сонгоно уу!",
                 ephemeral=True
             )
@@ -834,7 +834,7 @@ class Economy(commands.Cog):
                 ),
                 color=discord.Color.green()
             )
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
 
         else:
             # Fail — fine + tension
@@ -879,27 +879,27 @@ class Economy(commands.Cog):
                     ),
                     color=discord.Color.orange()
                 )
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /hack  — steal from bank (programmer only, 35% success)
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="hack", description="Банкинд халдах — зөвхөн програмист ашиглана (2 цаг cooldown)")
+    @commands.hybrid_command(name="hack", description="Банкинд халдах — зөвхөн програмист ашиглана (2 цаг cooldown)")
     @app_commands.describe(member="Хак хийх хүн")
-    async def hack(self, interaction: discord.Interaction, member: discord.Member):
-        uid, gid = interaction.user.id, interaction.guild_id
+    async def hack(self, ctx: commands.Context, member: discord.Member):
+        uid, gid = ctx.author.id, ctx.guild.id
         if member.id == uid:
-            await interaction.response.send_message("❌ Өөрийгөө хак хийх боломжгүй!", ephemeral=True)
+            await ctx.send("❌ Өөрийгөө хак хийх боломжгүй!", ephemeral=True)
             return
         if member.bot:
-            await interaction.response.send_message("❌ Bot-ыг хак хийх боломжгүй!", ephemeral=True)
+            await ctx.send("❌ Bot-ыг хак хийх боломжгүй!", ephemeral=True)
             return
 
         # Check programmer job
         from cogs.character import get_char
         char = await get_char(uid, gid)
         if not char or dict(char).get("job_id") != "programmer":
-            await interaction.response.send_message(
+            await ctx.send(
                 "\U0001f4bb Хак команд зөвхөн **Програмист** мэргэжилтэй хүн ашиглах боломжтой!\n"
                 "`/setjob` болон `/courses` командаар програмчлалын курс аваад програмист болно уу.",
                 ephemeral=True
@@ -916,7 +916,7 @@ class Economy(commands.Cog):
             if remaining.total_seconds() > 0:
                 mins = int(remaining.total_seconds() // 60)
                 secs = int(remaining.total_seconds() % 60)
-                await interaction.response.send_message(
+                await ctx.send(
                     f"⏳ Hack cooldown: **{mins}м {secs}с** хүлээнэ үү!", ephemeral=True
                 )
                 return
@@ -926,7 +926,7 @@ class Economy(commands.Cog):
 
         if v_bank <= 0:
             # Can immediately try another target
-            await interaction.response.send_message(
+            await ctx.send(
                 f"\U0001f4ca {member.display_name}-н банкны данс хоосон байна. Өөр хүнийг сонгоно уу!",
                 ephemeral=True
             )
@@ -964,7 +964,7 @@ class Economy(commands.Cog):
                 ),
                 color=discord.Color.green()
             )
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
 
         else:
             old_tension = hacker.get("tension", 0) or 0
@@ -1003,17 +1003,17 @@ class Economy(commands.Cog):
                     ),
                     color=discord.Color.orange()
                 )
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
 
 
     # ══════════════════════════════════════════════════════════
     #  /happiness  — аз жаргалын түвшин харах
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="happiness", description="Аз жаргалын түвшин болон ажлын өгөөжийг харах")
+    @commands.hybrid_command(name="happiness", description="Аз жаргалын түвшин болон ажлын өгөөжийг харах")
     @app_commands.describe(member="Өөр хэрэглэгчийн аз жаргал харах (хоосон = өөрийнх)")
-    async def happiness_cmd(self, interaction: discord.Interaction, member: discord.Member = None):
-        target    = member or interaction.user
-        uid, gid  = target.id, interaction.guild_id
+    async def happiness_cmd(self, ctx: commands.Context, member: discord.Member = None):
+        target    = member or ctx.author
+        uid, gid  = target.id, ctx.guild.id
         happiness = await get_happiness(uid, gid)
 
         h_pct  = happiness / 20.0
@@ -1049,28 +1049,28 @@ class Economy(commands.Cog):
         embed.add_field(name="💼 Ажлын өгөөж", value=f"**{h_mult:.0%}**", inline=True)
         embed.set_thumbnail(url=target.display_avatar.url)
         embed.set_footer(text="TOP Bot  •  /happiness  •  /eat хоол идэвэл түвшинийг бүхүүлээ")
-        await interaction.response.send_message(embed=embed, ephemeral=(member is None))
+        await ctx.send(embed=embed, ephemeral=(member is None))
 
 
     # ══════════════════════════════════════════════════════════
     #  /overtime  — 2-hour cooldown, 2x salary, happiness -3
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="overtime", description="Илүү цагаар ажиллах — 2 цаг cooldown, 2x цалин, аз жаргал -3")
-    async def overtime(self, interaction: discord.Interaction):
-        uid, gid = interaction.user.id, interaction.guild_id
+    @commands.hybrid_command(name="overtime", description="Илүү цагаар ажиллах — 2 цаг cooldown, 2x цалин, аз жаргал -3")
+    async def overtime(self, ctx: commands.Context):
+        uid, gid = ctx.author.id, ctx.guild.id
         char = await get_char(uid, gid)
         if not char:
-            await interaction.response.send_message("🎭 Эхлээд `/register` командаар дүр үүсгэнэ үү!", ephemeral=True)
+            await ctx.send("🎭 Эхлээд `/register` командаар дүр үүсгэнэ үү!", ephemeral=True)
             return
         age = calc_age(dict(char))
         if age >= char["death_age"]:
-            await interaction.response.send_message("💀 Таны дүр нас барсан!", ephemeral=True)
+            await ctx.send("💀 Таны дүр нас барсан!", ephemeral=True)
             return
         if age < WORK_MIN_AGE:
-            await interaction.response.send_message(f"🚫 {WORK_MIN_AGE} наснаас ажилладаг!", ephemeral=True)
+            await ctx.send(f"🚫 {WORK_MIN_AGE} наснаас ажилладаг!", ephemeral=True)
             return
         if not char["job_id"] or char["job_id"] not in JOBS:
-            await interaction.response.send_message("💼 Эхлээд `/setjob` командаар ажил сонгоно уу!", ephemeral=True)
+            await ctx.send("💼 Эхлээд `/setjob` командаар ажил сонгоно уу!", ephemeral=True)
             return
 
         now = datetime.utcnow()
@@ -1080,7 +1080,7 @@ class Economy(commands.Cog):
             elapsed = (now - datetime.fromisoformat(last_ot)).total_seconds() / 60
             if elapsed < 120:
                 rem = 120 - elapsed
-                await interaction.response.send_message(
+                await ctx.send(
                     f"⏳ Overtime cooldown: **{int(rem)}м {int((rem%1)*60)}с** хүлээнэ үү!", ephemeral=True
                 )
                 return
@@ -1110,36 +1110,36 @@ class Economy(commands.Cog):
             description=f'*"{work_msg}"*',
             color=0xF4A460
         )
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.add_field(name="💰 Олсон",      value=f"**+{earned:,} ₮** (2x)",   inline=True)
         embed.add_field(name="💼 Мэргэжил",   value=f"**{job['name_mn']}**",      inline=True)
         embed.add_field(name="😓 Аз жаргал",  value=f"**-3** → {new_hap}/20",    inline=True)
         embed.set_footer(text="TOP Bot  •  /overtime  •  2 цаг тутамд")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════
     #  /invest  — lock money for 12h, earn 8% interest
     # ══════════════════════════════════════════════════════════
-    @app_commands.command(name="invest", description="Мөнгөө хөрөнгө оруулалтад байршуулах (12 цаг, 8% ашиг)")
+    @commands.hybrid_command(name="invest", description="Мөнгөө хөрөнгө оруулалтад байршуулах (12 цаг, 8% ашиг)")
     @app_commands.describe(amount="Хөрөнгө оруулах дүн (min 10,000 ₮)")
-    async def invest(self, interaction: discord.Interaction, amount: int):
-        uid, gid = interaction.user.id, interaction.guild_id
+    async def invest(self, ctx: commands.Context, amount: int):
+        uid, gid = ctx.author.id, ctx.guild.id
         if amount < 10_000:
-            await interaction.response.send_message("❌ Хамгийн бага хөрөнгө оруулалт: **10,000 ₮**!", ephemeral=True)
+            await ctx.send("❌ Хамгийн бага хөрөнгө оруулалт: **10,000 ₮**!", ephemeral=True)
             return
         if amount > 5_000_000:
-            await interaction.response.send_message("❌ Хамгийн их хөрөнгө оруулалт: **5,000,000 ₮**!", ephemeral=True)
+            await ctx.send("❌ Хамгийн их хөрөнгө оруулалт: **5,000,000 ₮**!", ephemeral=True)
             return
 
         user = await get_user(uid, gid)
         if (user.get("invest_amount") or 0) > 0:
-            await interaction.response.send_message(
+            await ctx.send(
                 "📊 Аль хэдийн хөрөнгө оруулалт байна! `/collectinvest` командаар эхлээд авна уу.",
                 ephemeral=True
             )
             return
         if user["balance"] < amount:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Мөнгө хүрэлцэхгүй! Таных: **{user['balance']:,} ₮**", ephemeral=True
             )
             return
@@ -1165,18 +1165,18 @@ class Economy(commands.Cog):
             color=0x2ECC71
         )
         embed.set_footer(text="/collectinvest командаар авна уу")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── /collectinvest ────────────────────────────────────────
-    @app_commands.command(name="collectinvest", description="Хөрөнгө оруулалтаа авах (12 цагийн дараа)")
-    async def collectinvest(self, interaction: discord.Interaction):
-        uid, gid = interaction.user.id, interaction.guild_id
+    @commands.hybrid_command(name="collectinvest", description="Хөрөнгө оруулалтаа авах (12 цагийн дараа)")
+    async def collectinvest(self, ctx: commands.Context):
+        uid, gid = ctx.author.id, ctx.guild.id
         user = await get_user(uid, gid)
         invested = user.get("invest_amount") or 0
         inv_time = user.get("invest_time")
 
         if invested <= 0 or not inv_time:
-            await interaction.response.send_message("❌ Хөрөнгө оруулалт байхгүй байна! `/invest` командаар эхлүүл.", ephemeral=True)
+            await ctx.send("❌ Хөрөнгө оруулалт байхгүй байна! `/invest` командаар эхлүүл.", ephemeral=True)
             return
 
         now     = datetime.utcnow()
@@ -1184,7 +1184,7 @@ class Economy(commands.Cog):
         if elapsed < 12:
             rem_h = int(12 - elapsed)
             rem_m = int(((12 - elapsed) % 1) * 60)
-            await interaction.response.send_message(
+            await ctx.send(
                 f"⏳ Хугацаа дуусаагүй! **{rem_h}ц {rem_m}м** хүлээнэ үү.", ephemeral=True
             )
             return
@@ -1207,8 +1207,8 @@ class Economy(commands.Cog):
             ),
             color=0x27AE60
         )
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
-        await interaction.response.send_message(embed=embed)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
 
 
 async def setup(bot):

@@ -8,13 +8,16 @@ from cogs.character import JOBS, COURSES, GENDER_MN, SEXUALITY_MN, calc_age, get
 from config import WORK_COOLDOWN_MINUTES, BALANCE_CAP, HOURS_PER_GAME_YEAR
 
 def admin_only():
-    async def predicate(interaction: discord.Interaction) -> bool:
-        if interaction.guild and interaction.guild.get_member(interaction.user.id):
-            if interaction.guild.get_member(interaction.user.id).guild_permissions.administrator:
-                return True
-        await interaction.response.send_message("🚫 Зөвхөн admin ашиглах боломжтой!", ephemeral=True)
-        return False
-    return app_commands.check(predicate)
+    async def predicate(ctx: commands.Context) -> bool:
+        guild = ctx.guild
+        if guild is None:
+            return False
+        member = guild.get_member(ctx.author.id)
+        if not member or not (member.guild_permissions.administrator or ctx.author.id == OWNER_ID):
+            await ctx.send("🚫 Зөвхөн admin ашиглах боломжтой!", ephemeral=True)
+            return False
+        return True
+    return commands.check(predicate)
 
 async def _full_wipe(uid: int, gid: int, db):
     """Хэрэглэгчийн бүх мэдээллийг database-с арилгах."""
@@ -67,55 +70,55 @@ class Admin(commands.Cog):
         self.bot = bot
 
     # ── /adminsetage ──────────────────────────────────────────
-    @app_commands.command(name="adminsetage", description="[Admin] Хэрэглэгчийн насыг тохируулах")
+    @commands.hybrid_command(name="adminsetage", description="[Admin] Хэрэглэгчийн насыг тохируулах")
     @app_commands.describe(member="Хэрэглэгч", age="Шинэ нас (5–90)")
     @admin_only()
-    async def adminsetage(self, interaction: discord.Interaction, member: discord.Member, age: int):
+    async def adminsetage(self, ctx: commands.Context, member: discord.Member, age: int):
         if not 5 <= age <= 90:
-            await interaction.response.send_message("❌ Нас 5–90 хооронд байх ёстой!", ephemeral=True)
+            await ctx.send("❌ Нас 5–90 хооронд байх ёстой!", ephemeral=True)
             return
-        char = await get_char(member.id, interaction.guild_id)
+        char = await get_char(member.id, ctx.guild.id)
         if not char:
-            await interaction.response.send_message(f"❌ **{member.display_name}** дүр үүсгээгүй байна!", ephemeral=True)
+            await ctx.send(f"❌ **{member.display_name}** дүр үүсгээгүй байна!", ephemeral=True)
             return
         # birth_time-г шинэ насанд тохируулан тооцоолно
         new_birth = datetime.utcnow() - timedelta(hours=age * HOURS_PER_GAME_YEAR)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE character_info SET birth_time=? WHERE user_id=? AND guild_id=?",
-                (new_birth.isoformat(), member.id, interaction.guild_id)
+                (new_birth.isoformat(), member.id, ctx.guild.id)
             )
             await db.commit()
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ **{member.display_name}**-н насыг **{age}** болголоо.", ephemeral=True
         )
 
     # ── /adminsetgender ───────────────────────────────────────
-    @app_commands.command(name="adminsetgender", description="[Admin] Хэрэглэгчийн хүйсийг солих")
+    @commands.hybrid_command(name="adminsetgender", description="[Admin] Хэрэглэгчийн хүйсийг солих")
     @app_commands.describe(member="Хэрэглэгч", gender="Хүйс")
     @app_commands.choices(gender=[
         app_commands.Choice(name="👨 Эрэгтэй", value="male"),
         app_commands.Choice(name="👩 Эмэгтэй", value="female"),
     ])
     @admin_only()
-    async def adminsetgender(self, interaction: discord.Interaction, member: discord.Member, gender: str):
-        char = await get_char(member.id, interaction.guild_id)
+    async def adminsetgender(self, ctx: commands.Context, member: discord.Member, gender: str):
+        char = await get_char(member.id, ctx.guild.id)
         if not char:
-            await interaction.response.send_message(f"❌ **{member.display_name}** дүр үүсгээгүй байна!", ephemeral=True)
+            await ctx.send(f"❌ **{member.display_name}** дүр үүсгээгүй байна!", ephemeral=True)
             return
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE character_info SET gender=? WHERE user_id=? AND guild_id=?",
-                (gender, member.id, interaction.guild_id)
+                (gender, member.id, ctx.guild.id)
             )
             await db.commit()
         label = GENDER_MN.get(gender, gender)
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ **{member.display_name}**-н хүйсийг **{label}** болголоо.", ephemeral=True
         )
 
     # ── /adminsetsexuality ────────────────────────────────────
-    @app_commands.command(name="adminsetsexuality", description="[Admin] Хэрэглэгчийн чиг баримжааг солих")
+    @commands.hybrid_command(name="adminsetsexuality", description="[Admin] Хэрэглэгчийн чиг баримжааг солих")
     @app_commands.describe(member="Хэрэглэгч", sexuality="Чиг баримжаа")
     @app_commands.choices(sexuality=[
         app_commands.Choice(name="💑 Straight", value="straight"),
@@ -123,29 +126,29 @@ class Admin(commands.Cog):
         app_commands.Choice(name="💜 Бисексуал",      value="bisexual"),
     ])
     @admin_only()
-    async def adminsetsexuality(self, interaction: discord.Interaction, member: discord.Member, sexuality: str):
-        char = await get_char(member.id, interaction.guild_id)
+    async def adminsetsexuality(self, ctx: commands.Context, member: discord.Member, sexuality: str):
+        char = await get_char(member.id, ctx.guild.id)
         if not char:
-            await interaction.response.send_message(f"❌ **{member.display_name}** дүр үүсгээгүй байна!", ephemeral=True)
+            await ctx.send(f"❌ **{member.display_name}** дүр үүсгээгүй байна!", ephemeral=True)
             return
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE character_info SET sexuality=? WHERE user_id=? AND guild_id=?",
-                (sexuality, member.id, interaction.guild_id)
+                (sexuality, member.id, ctx.guild.id)
             )
             await db.commit()
         label = SEXUALITY_MN.get(sexuality, sexuality)
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ **{member.display_name}**-н чиг баримжааг **{label}** болголоо.", ephemeral=True
         )
 
     # ── /adminsetjob ──────────────────────────────────────────
-    @app_commands.command(name="adminsetjob", description="[Admin] Ажлыг cooldown алгасаад тохируулах")
+    @commands.hybrid_command(name="adminsetjob", description="[Admin] Ажлыг cooldown алгасаад тохируулах")
     @app_commands.describe(member="Хэрэглэгч", job="Ажлын ID")
     @admin_only()
-    async def adminsetjob(self, interaction: discord.Interaction, member: discord.Member, job: str):
+    async def adminsetjob(self, ctx: commands.Context, member: discord.Member, job: str):
         if job not in JOBS and job != "none":
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Тийм ажил байхгүй! Боломжит ажлууд: {', '.join(JOBS.keys())}", ephemeral=True
             )
             return
@@ -153,146 +156,146 @@ class Admin(commands.Cog):
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE character_info SET job_id=?, last_setjob=NULL WHERE user_id=? AND guild_id=?",
-                (job_val, member.id, interaction.guild_id)
+                (job_val, member.id, ctx.guild.id)
             )
             await db.commit()
         job_name = JOBS[job]["name_mn"] if job != "none" else "Ажилгүй"
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ **{member.display_name}**-н ажлыг **{job_name}** болголоо.", ephemeral=True
         )
 
 
     # ── /adminkill ────────────────────────────────────────────
-    @app_commands.command(name="adminkill", description="[Admin] Дүрийн бүх мэдээлэл database-с устгах")
+    @commands.hybrid_command(name="adminkill", description="[Admin] Дүрийн бүх мэдээлэл database-с устгах")
     @app_commands.describe(member="Хэрэглэгч")
     @admin_only()
-    async def adminkill(self, interaction: discord.Interaction, member: discord.Member):
+    async def adminkill(self, ctx: commands.Context, member: discord.Member):
         async with aiosqlite.connect(DB_PATH) as db:
-            await _full_wipe(member.id, interaction.guild_id, db)
-        await interaction.response.send_message(
+            await _full_wipe(member.id, ctx.guild.id, db)
+        await ctx.send(
             f"💀 **{member.display_name}**-н бүх мэдээлэл (character, users, inventory, family, rpg) устгагдлаа.",
             ephemeral=True
         )
 
     # ── /adminsetbalance ──────────────────────────────────────
-    @app_commands.command(name="adminsetbalance", description="[Admin] Балансыг яг тохируулах")
+    @commands.hybrid_command(name="adminsetbalance", description="[Admin] Балансыг яг тохируулах")
     @app_commands.describe(member="Хэрэглэгч", amount="Шинэ баланс")
     @admin_only()
-    async def adminsetbalance(self, interaction: discord.Interaction, member: discord.Member, amount: int):
+    async def adminsetbalance(self, ctx: commands.Context, member: discord.Member, amount: int):
         if amount < 0:
-            await interaction.response.send_message("❌ Баланс 0-с бага байж болохгүй!", ephemeral=True)
+            await ctx.send("❌ Баланс 0-с бага байж болохгүй!", ephemeral=True)
             return
         amount = min(amount, BALANCE_CAP)
-        await get_user(member.id, interaction.guild_id)
+        await get_user(member.id, ctx.guild.id)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE users SET balance=? WHERE user_id=? AND guild_id=?",
-                (amount, member.id, interaction.guild_id)
+                (amount, member.id, ctx.guild.id)
             )
             await db.commit()
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ **{member.display_name}**-н балансыг **{amount:,} ₮** болголоо.", ephemeral=True
         )
 
     # ── /adminaddbalance ──────────────────────────────────────
-    @app_commands.command(name="adminaddbalance", description="[Admin] Мөнгө нэмэх/хасах (сөрөг тоо хасна)")
+    @commands.hybrid_command(name="adminaddbalance", description="[Admin] Мөнгө нэмэх/хасах (сөрөг тоо хасна)")
     @app_commands.describe(member="Хэрэглэгч", amount="Нэмэх/хасах дүн")
     @admin_only()
-    async def adminaddbalance(self, interaction: discord.Interaction, member: discord.Member, amount: int):
-        await get_user(member.id, interaction.guild_id)
+    async def adminaddbalance(self, ctx: commands.Context, member: discord.Member, amount: int):
+        await get_user(member.id, ctx.guild.id)
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             await db.execute(
                 "UPDATE users SET balance=MIN(?,MAX(0,balance+?)) WHERE user_id=? AND guild_id=?",
-                (BALANCE_CAP, amount, member.id, interaction.guild_id)
+                (BALANCE_CAP, amount, member.id, ctx.guild.id)
             )
             await db.commit()
             row = await (await db.execute(
                 "SELECT balance FROM users WHERE user_id=? AND guild_id=?",
-                (member.id, interaction.guild_id)
+                (member.id, ctx.guild.id)
             )).fetchone()
         sign = "+" if amount >= 0 else ""
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ **{member.display_name}**: {sign}{amount:,} ₮ → Шинэ баланс: **{row['balance']:,} ₮**", ephemeral=True
         )
 
     # ── /adminsetlevel ────────────────────────────────────────
-    @app_commands.command(name="adminsetlevel", description="[Admin] Level тохируулах")
+    @commands.hybrid_command(name="adminsetlevel", description="[Admin] Level тохируулах")
     @app_commands.describe(member="Хэрэглэгч", level="Шинэ level (1–100)")
     @admin_only()
-    async def adminsetlevel(self, interaction: discord.Interaction, member: discord.Member, level: int):
+    async def adminsetlevel(self, ctx: commands.Context, member: discord.Member, level: int):
         if not 1 <= level <= 100:
-            await interaction.response.send_message("❌ Level 1–100 хооронд байх ёстой!", ephemeral=True)
+            await ctx.send("❌ Level 1–100 хооронд байх ёстой!", ephemeral=True)
             return
-        await get_user(member.id, interaction.guild_id)
+        await get_user(member.id, ctx.guild.id)
         xp_for_level = level * level * 100
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE users SET level=?, xp=? WHERE user_id=? AND guild_id=?",
-                (level, xp_for_level, member.id, interaction.guild_id)
+                (level, xp_for_level, member.id, ctx.guild.id)
             )
             await db.commit()
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ **{member.display_name}**-н level-г **{level}** болголоо.", ephemeral=True
         )
 
     # ── /adminresetchar ───────────────────────────────────────
-    @app_commands.command(name="adminresetchar", description="[Admin] Дүрийн бүх мэдээлэл цэвэрлэх")
+    @commands.hybrid_command(name="adminresetchar", description="[Admin] Дүрийн бүх мэдээлэл цэвэрлэх")
     @app_commands.describe(member="Хэрэглэгч")
     @admin_only()
-    async def adminresetchar(self, interaction: discord.Interaction, member: discord.Member):
+    async def adminresetchar(self, ctx: commands.Context, member: discord.Member):
         async with aiosqlite.connect(DB_PATH) as db:
-            await _full_wipe(member.id, interaction.guild_id, db)
-        await interaction.response.send_message(
+            await _full_wipe(member.id, ctx.guild.id, db)
+        await ctx.send(
             f"✅ **{member.display_name}**-н бүх мэдээлэл цэвэрлэгдлээ. `/register` дахин хийх боломжтой.",
             ephemeral=True
         )
 
     # ── /adminsetprison ───────────────────────────────────────
-    @app_commands.command(name="adminsetprison", description="[Admin] Хэрэглэгчийг шоронд хийх")
+    @commands.hybrid_command(name="adminsetprison", description="[Admin] Хэрэглэгчийг шоронд хийх")
     @app_commands.describe(member="Хэрэглэгч", minutes="Хугацаа (минутаар)")
     @admin_only()
-    async def adminsetprison(self, interaction: discord.Interaction, member: discord.Member, minutes: int):
+    async def adminsetprison(self, ctx: commands.Context, member: discord.Member, minutes: int):
         if minutes <= 0:
-            await interaction.response.send_message("❌ Хугацаа 0-с их байх ёстой!", ephemeral=True)
+            await ctx.send("❌ Хугацаа 0-с их байх ёстой!", ephemeral=True)
             return
         release = datetime.utcnow() + timedelta(minutes=minutes)
-        await get_user(member.id, interaction.guild_id)
+        await get_user(member.id, ctx.guild.id)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE users SET prison_until=? WHERE user_id=? AND guild_id=?",
-                (release.isoformat(), member.id, interaction.guild_id)
+                (release.isoformat(), member.id, ctx.guild.id)
             )
             await db.commit()
-        await interaction.response.send_message(
+        await ctx.send(
             f"🚔 **{member.display_name}** **{minutes} минут**-аар шоронд орлоо.", ephemeral=True
         )
 
     # ── /adminresetcooldown ───────────────────────────────────
-    @app_commands.command(name="adminresetcooldown", description="[Admin] Work/setjob cooldown цэвэрлэх")
+    @commands.hybrid_command(name="adminresetcooldown", description="[Admin] Work/setjob cooldown цэвэрлэх")
     @app_commands.describe(member="Хэрэглэгч")
     @admin_only()
-    async def adminresetcooldown(self, interaction: discord.Interaction, member: discord.Member):
-        await get_user(member.id, interaction.guild_id)
+    async def adminresetcooldown(self, ctx: commands.Context, member: discord.Member):
+        await get_user(member.id, ctx.guild.id)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE users SET last_work=NULL, last_daily=NULL WHERE user_id=? AND guild_id=?",
-                (member.id, interaction.guild_id)
+                (member.id, ctx.guild.id)
             )
             await db.commit()
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE character_info SET last_setjob=NULL WHERE user_id=? AND guild_id=?",
-                (member.id, interaction.guild_id)
+                (member.id, ctx.guild.id)
             )
             await db.commit()
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ **{member.display_name}**-н work/setjob/daily cooldown цэвэрлэгдлээ.", ephemeral=True
         )
 
 
     # ── /setvirtualchild ──────────────────────────────────────
-    @app_commands.command(name="setvirtualchild", description="[Admin] Хосод виртуал хүүхэд нэмэх")
+    @commands.hybrid_command(name="setvirtualchild", description="[Admin] Хосод виртуал хүүхэд нэмэх")
     @app_commands.describe(
         parent1="Эцэг/Эх 1",
         parent2="Эцэг/Эх 2",
@@ -316,15 +319,15 @@ class Admin(commands.Cog):
         import random as _random
 
         if parent1.id == parent2.id:
-            await interaction.response.send_message("Эцэг/эх хоёр ижил хүн байж болохгүй!", ephemeral=True)
+            await ctx.send("Эцэг/эх хоёр ижил хүн байж болохгүй!", ephemeral=True)
             return
 
         # Хоёулаа гэрлэсэн байх ёстой (гэрлэлтийн нийцтэй байдал шалгах)
         from database import get_family as _gf
-        fam1 = await _gf(parent1.id, interaction.guild_id)
-        fam2 = await _gf(parent2.id, interaction.guild_id)
+        fam1 = await _gf(parent1.id, ctx.guild.id)
+        fam2 = await _gf(parent2.id, ctx.guild.id)
         if fam1.get("spouse_id") != parent2.id or fam2.get("spouse_id") != parent1.id:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ **{parent1.display_name}** болон **{parent2.display_name}** гэрлэсэн байх ёстой!",
                 ephemeral=True
             )
@@ -340,19 +343,19 @@ class Admin(commands.Cog):
                 "INSERT INTO virtual_children "
                 "(guild_id,parent1_id,parent2_id,name,gender,birth_time,college,custodian_id) "
                 "VALUES (?,?,?,?,?,?,0,NULL)",
-                (interaction.guild_id, p1, p2, sel_name, sel_gender, birth_time),
+                (ctx.guild.id, p1, p2, sel_name, sel_gender, birth_time),
             )
             await db.commit()
 
         gender_mn = "Хөвгүүн" if sel_gender == "male" else "Охин"
-        await interaction.response.send_message(
+        await ctx.send(
             f"👶 **{sel_name}** ({gender_mn}) — {parent1.display_name} & {parent2.display_name}-н хүүхдэд нэмэгдлээ!",
             ephemeral=True,
         )
 
 
     # ── /admingivechild ───────────────────────────────────────
-    @app_commands.command(name="admingivechild", description="[Admin] Нэг гишүүнд виртуал хүүхэд оноох")
+    @commands.hybrid_command(name="admingivechild", description="[Admin] Нэг гишүүнд виртуал хүүхэд оноох")
     @app_commands.describe(
         parent="Эцэг/Эх болох хэрэглэгч",
         name="Хүүхдийн нэр (хоосон бол санамсаргүй)",
@@ -383,42 +386,42 @@ class Admin(commands.Cog):
                 "INSERT INTO virtual_children "
                 "(guild_id,parent1_id,parent2_id,name,gender,birth_time,college,custodian_id) "
                 "VALUES (?,?,0,?,?,?,0,NULL)",
-                (interaction.guild_id, parent.id, sel_name, sel_gender, birth_time),
+                (ctx.guild.id, parent.id, sel_name, sel_gender, birth_time),
             )
             await db.commit()
 
         gender_mn = "Хөвгүүн" if sel_gender == "male" else "Охин"
-        await interaction.response.send_message(
+        await ctx.send(
             f"👶 **{sel_name}** ({gender_mn}) — {parent.display_name}-д оноогдлоо!",
             ephemeral=True,
         )
 
 
     # ── /adminremovechild ─────────────────────────────────────
-    @app_commands.command(name="adminremovechild", description="[Admin] Виртуал хүүхдийг устгах (child_id)")
+    @commands.hybrid_command(name="adminremovechild", description="[Admin] Виртуал хүүхдийг устгах (child_id)")
     @app_commands.describe(child_id="Устгах хүүхдийн ID (/family командаас харна)")
     @admin_only()
-    async def adminremovechild(self, interaction: discord.Interaction, child_id: int):
+    async def adminremovechild(self, ctx: commands.Context, child_id: int):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cur = await db.execute(
                 "SELECT * FROM virtual_children WHERE child_id=? AND guild_id=?",
-                (child_id, interaction.guild_id)
+                (child_id, ctx.guild.id)
             )
             child = await cur.fetchone()
             if not child:
-                await interaction.response.send_message(
+                await ctx.send(
                     f"❌ **{child_id}** ID-тай виртуал хүүхэд энэ серверт байхгүй!", ephemeral=True
                 )
                 return
             await db.execute("DELETE FROM virtual_children WHERE child_id=?", (child_id,))
             await db.execute("DELETE FROM child_calc       WHERE child_id=?", (child_id,))
             await db.execute("DELETE FROM child_votes      WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
-                             (interaction.guild_id, child["parent1_id"], child["parent2_id"]))
+                             (ctx.guild.id, child["parent1_id"], child["parent2_id"]))
             await db.commit()
 
         gender_mn = "хүү" if child["gender"] == "male" else "охин"
-        await interaction.response.send_message(
+        await ctx.send(
             f"🗑️ **{child['name']}** ({gender_mn}, ID:{child_id}) виртуал хүүхэд устгагдлаа.",
             ephemeral=True
         )

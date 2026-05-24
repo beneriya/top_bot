@@ -20,17 +20,17 @@ class Roles(commands.Cog):
                 await channel.send(embed=embed)
                 break
 
-    @app_commands.command(name="giverole", description="Гишүүнд role өгөх [Admin]")
+    @commands.hybrid_command(name="giverole", description="Гишүүнд role өгөх [Admin]")
     @app_commands.checks.has_permissions(manage_roles=True)
-    async def give_role(self, interaction: discord.Interaction, member: discord.Member, role: discord.Role):
+    async def give_role(self, ctx: commands.Context, member: discord.Member, role: discord.Role):
         await member.add_roles(role)
-        await interaction.response.send_message(f"✅ {member.mention}-д {role.mention} role өгөгдлөө!")
+        await ctx.send(f"✅ {member.mention}-д {role.mention} role өгөгдлөө!")
 
-    @app_commands.command(name="removerole", description="Гишүүний role-г авах [Admin]")
+    @commands.hybrid_command(name="removerole", description="Гишүүний role-г авах [Admin]")
     @app_commands.checks.has_permissions(manage_roles=True)
-    async def remove_role(self, interaction: discord.Interaction, member: discord.Member, role: discord.Role):
+    async def remove_role(self, ctx: commands.Context, member: discord.Member, role: discord.Role):
         await member.remove_roles(role)
-        await interaction.response.send_message(f"✅ {member.mention}-ийн {role.mention} role авагдлаа!")
+        await ctx.send(f"✅ {member.mention}-ийн {role.mention} role авагдлаа!")
 
 async def setup(bot):
     await bot.add_cog(Roles(bot))

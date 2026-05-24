@@ -164,7 +164,65 @@ class PrisonTree(app_commands.CommandTree):
 
 # ── Bot setup ────────────────────────────────────────────────────
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents, tree_cls=PrisonTree)
+bot = commands.Bot(command_prefix="t", intents=intents, tree_cls=PrisonTree)
+
+@bot.check
+async def global_prefix_check(ctx: commands.Context):
+    """Prefix командуудад (twork гэх мэт) prison + character шалгалт."""
+    if ctx.interaction:
+        return True   # Slash/hybrid slash → PrisonTree handles it
+    cmd_name = ctx.command.name if ctx.command else None
+    if not cmd_name or not ctx.guild:
+        return True
+    # Admin commands — no restriction
+    member = ctx.guild.get_member(ctx.author.id)
+    if member and member.guild_permissions.administrator:
+        return True
+    try:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            row = await (await db.execute(
+                "SELECT prison_until FROM users WHERE user_id=? AND guild_id=?",
+                (ctx.author.id, ctx.guild.id)
+            )).fetchone()
+        if row and row["prison_until"]:
+            release = datetime.fromisoformat(row["prison_until"])
+            if datetime.utcnow() < release:
+                remaining = int((release - datetime.utcnow()).total_seconds())
+                await ctx.send(
+                    f"🚔 Та эрүүлжүүлэхэд байна! "
+                    f"**{remaining//60}м {remaining%60}с** үлдсэн.",
+                )
+                return False
+    except Exception:
+        pass
+    # Character check
+    NO_CHAR = {
+        "register","help","profile","top","richlist","balance","stats",
+        "givemoney","releaseprison","giverole","removerole","level_role_add",
+        "eruuljuuleh","prisonlist","jobs","courses","rlb",
+        "deposit","withdraw","bank",
+        "adminsetage","adminsetgender","adminsetsexuality","adminsetjob",
+        "adminkill","adminsetbalance","adminaddbalance","admingivechild",
+        "setvirtualchild","adminremovechild","adminsetlevel","adminresetchar",
+        "adminsetprison","adminresetcooldown",
+    }
+    if cmd_name not in NO_CHAR:
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                has_char = await (await db.execute(
+                    "SELECT 1 FROM character_info WHERE user_id=? AND guild_id=?",
+                    (ctx.author.id, ctx.guild.id)
+                )).fetchone()
+            if not has_char:
+                await ctx.send(
+                    "🎭 Эхлээд **`/register`** командаар дүр үүсгэнэ үү!"
+                )
+                return False
+        except Exception:
+            pass
+    return True
 
 @bot.event
 async def on_ready():

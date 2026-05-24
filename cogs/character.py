@@ -314,13 +314,37 @@ class AgeModal(discord.ui.Modal, title="🎂 Насаа оруулна уу"):
                 return
 
         async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            uid2, gid2 = interaction.user.id, interaction.guild_id
+            # Шинэ амьдрал — өмнөх виртуал хүүхдийн холбоосыг цэвэрлэх
+            _old_kids = await (await db.execute(
+                "SELECT id, parent1_id, parent2_id FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
+                (gid2, uid2, uid2)
+            )).fetchall()
+            for _ck in _old_kids:
+                _other = _ck["parent2_id"] if _ck["parent1_id"] == uid2 else _ck["parent1_id"]
+                _alive = False
+                if _other and _other != 0:
+                    _r = await (await db.execute(
+                        "SELECT 1 FROM character_info WHERE user_id=? AND guild_id=?", (_other, gid2)
+                    )).fetchone()
+                    _alive = _r is not None
+                if _alive:
+                    # Нөгөө эцэг/эх амьд → тэд л харж чаддаг болно
+                    await db.execute("UPDATE virtual_children SET custodian_id=? WHERE id=?", (_other, _ck["id"]))
+                else:
+                    # Хоёулаа нас барсан → хүүхдийг устгана
+                    await db.execute("DELETE FROM virtual_children WHERE id=?", (_ck["id"],))
+                    await db.execute("DELETE FROM child_calc WHERE child_id=?", (_ck["id"],))
+            await db.execute("DELETE FROM child_calc WHERE parent_id=?", (uid2,))
+            # Шинэ дүр үүсгэх
             await db.execute(
                 """INSERT OR REPLACE INTO character_info
                        (user_id, guild_id, gender, sexuality, birth_date, birth_time,
                         death_age, job_id, last_milestone)
                    VALUES (?,?,?,?,NULL,?,?,NULL,?)""",
                 (
-                    interaction.user.id, interaction.guild_id,
+                    uid2, gid2,
                     self.char_gender, self.char_sexuality,
                     birth_time, death_age, init_milestone,
                 ),
@@ -882,34 +906,34 @@ class Character(commands.Cog):
         await self.bot.wait_until_ready()
 
     # ── /register ─────────────────────────────────────────────
-    @app_commands.command(name="register", description="Дүр үүсгэж тоглоомыг эхлүүлэх")
-    async def register(self, interaction: discord.Interaction):
-        acc_age = (datetime.utcnow() - interaction.user.created_at.replace(tzinfo=None)).days
+    @commands.hybrid_command(name="register", description="Дүр үүсгэж тоглоомыг эхлүүлэх")
+    async def register(self, ctx: commands.Context):
+        acc_age = (datetime.utcnow() - ctx.author.created_at.replace(tzinfo=None)).days
         if acc_age < 30:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Discord акк таных **30 хоногтой байхгүй** байна!\n"
                 f"Таных акк: **{acc_age} хоногтой**. Дахин: **{30 - acc_age} хоног** хүлээрэй.",
                 ephemeral=True
             )
             return
         view = RegisterView()
-        await interaction.response.send_message(embed=view._build_embed(), view=view, ephemeral=True)
+        await ctx.send(embed=view._build_embed(), view=view, ephemeral=True)
 
     # ── /mychar ───────────────────────────────────────────────
-    @app_commands.command(name="mychar", description="Өөрийн дүрийн мэдээлэл харах")
-    async def mychar(self, interaction: discord.Interaction, member: discord.Member = None):
-        target = member or interaction.user
-        char   = await get_char(target.id, interaction.guild_id)
+    @commands.hybrid_command(name="mychar", description="Өөрийн дүрийн мэдээлэл харах")
+    async def mychar(self, ctx: commands.Context, member: discord.Member = None):
+        target = member or ctx.author
+        char   = await get_char(target.id, ctx.guild.id)
 
         if not char:
             msg = ("🎭 Дүр үүсгээгүй байна!"
-                   if target == interaction.user
+                   if target == ctx.author
                    else f"🎭 **{target.display_name}** дүр үүсгээгүй байна!")
-            await interaction.response.send_message(msg, ephemeral=True)
+            await ctx.send(msg, ephemeral=True)
             return
 
         age       = calc_age(dict(char))
-        completed = await get_completed_courses(target.id, interaction.guild_id)
+        completed = await get_completed_courses(target.id, ctx.guild.id)
 
         # Death check
         if age >= char["death_age"]:
@@ -921,7 +945,7 @@ class Character(commands.Cog):
                 ),
                 color=0x555555,
             )
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed)
             return
 
         job_txt = "Ажилгүй"
@@ -949,15 +973,15 @@ class Character(commands.Cog):
         embed.add_field(name="💼 Ажил",            value=job_txt,                                             inline=True)
         embed.add_field(name="⌛ Наслах хязгаар",  value=f"**{char['death_age']}** нас",                     inline=True)
         embed.add_field(name="📚 Курс",            value=course_txt,                                          inline=False)
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── /jobs ─────────────────────────────────────────────────
-    @app_commands.command(name="jobs", description="Бүх ажлын жагсаалт болон шаардлагыг харах")
-    async def jobs(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+    @commands.hybrid_command(name="jobs", description="Бүх ажлын жагсаалт болон шаардлагыг харах")
+    async def jobs(self, ctx: commands.Context):
+        await ctx.defer()
         try:
-            char      = await get_char(interaction.user.id, interaction.guild_id)
-            completed = await get_completed_courses(interaction.user.id, interaction.guild_id) if char else set()
+            char      = await get_char(ctx.author.id, ctx.guild.id)
+            completed = await get_completed_courses(ctx.author.id, ctx.guild.id) if char else set()
 
             free_male   = []
             free_female = []
@@ -993,19 +1017,19 @@ class Character(commands.Cog):
 
             if not char:
                 embed.set_footer(text="⚠️  /register командаар дүр үүсгэснийхээ дараа ажил сонгоно уу.")
-            await interaction.followup.send(embed=embed)
+            await ctx.send(embed=embed)
         except Exception as e:
-            await interaction.followup.send(f"❌ Алдаа гарлаа: `{e}`", ephemeral=True)
+            await ctx.send(f"❌ Алдаа гарлаа: `{e}`", ephemeral=True)
 
     # ── /setjob ───────────────────────────────────────────────
-    @app_commands.command(name="setjob", description="Ажлаа сонгох")
+    @commands.hybrid_command(name="setjob", description="Ажлаа сонгох")
     @app_commands.describe(job="Ажлын нэр — жагсаалтаас сонгоно уу")
     @app_commands.autocomplete(job=_job_autocomplete)
-    async def setjob(self, interaction: discord.Interaction, job: str):
-        uid, gid = interaction.user.id, interaction.guild_id
+    async def setjob(self, ctx: commands.Context, job: str):
+        uid, gid = ctx.author.id, ctx.guild.id
         char = await get_char(uid, gid)
         if not char:
-            await interaction.response.send_message(
+            await ctx.send(
                 "🎭 Эхлээд `/register` командаар дүр үүсгэнэ үү!", ephemeral=True
             )
             return
@@ -1013,19 +1037,19 @@ class Character(commands.Cog):
         # ── Нас барсан эсэх ──────────────────────────────────────
         age = calc_age(dict(char))
         if age >= char["death_age"]:
-            await interaction.response.send_message(
+            await ctx.send(
                 "💀 Таны дүр нас барсан! `/register` командаар шинэ дүр үүсгэнэ үү.", ephemeral=True
             )
             return
         if age < 16:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"🚫 Та **{age} настай** байна. 16 наснаас ажилладаг!", ephemeral=True
             )
             return
 
         # ── Ажил байгаа эсэх ─────────────────────────────────────
         if job not in JOBS:
-            await interaction.response.send_message("❌ Тийм ажил байхгүй!", ephemeral=True)
+            await ctx.send("❌ Тийм ажил байхгүй!", ephemeral=True)
             return
 
         jdata = JOBS[job]
@@ -1033,7 +1057,7 @@ class Character(commands.Cog):
         # ── Хүйсийн шаардлага ────────────────────────────────────
         if jdata["gender"] and jdata["gender"] != char["gender"]:
             gender_txt = "эрэгтэй" if jdata["gender"] == "male" else "эмэгтэй"
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ **{jdata['name_mn']}** зөвхөн {gender_txt}чүүдэд зориулагдсан!", ephemeral=True
             )
             return
@@ -1043,7 +1067,7 @@ class Character(commands.Cog):
             completed = await get_completed_courses(uid, gid)
             if jdata["course"] not in completed:
                 cd = COURSES[jdata["course"]]
-                await interaction.response.send_message(
+                await ctx.send(
                     f"🔒 **{jdata['name_mn']}** ажил хийхийн тулд "
                     f"**{cd['name_mn']}** ({cd['cost']:,} ₮) суралцах шаардлагатай!\n"
                     f"`/enroll {jdata['course']}` командаар элсэнэ үү.",
@@ -1066,7 +1090,7 @@ class Character(commands.Cog):
                 if rem.total_seconds() > 0:
                     m, s = int(rem.total_seconds() // 60), int(rem.total_seconds() % 60)
                     cd_txt = f"\n⏳ Ажил солих боломжтой болох хүртэл: **{m}м {s}с**"
-            await interaction.response.send_message(
+            await ctx.send(
                 f"{jdata['emoji']} Та аль хэдийн **{jdata['name_mn']}**-аар ажиллаж байна!{cd_txt}",
                 ephemeral=True
             )
@@ -1083,7 +1107,7 @@ class Character(commands.Cog):
                 m, s = int(rem.total_seconds() // 60), int(rem.total_seconds() % 60)
                 cur_job = JOBS.get(char["job_id"], {})
                 cur_name = cur_job.get("name_mn", "тодорхойгүй")
-                await interaction.response.send_message(
+                await ctx.send(
                     f"⏳ Та **{cur_name}**-аар ажиллаж байна!\n"
                     f"Ажил солих боломжтой болох хүртэл: **{m}м {s}с**",
                     ephemeral=True
@@ -1109,11 +1133,11 @@ class Character(commands.Cog):
             color=discord.Color.green(),
         )
         embed.set_footer(text="➡️  /work командаар ажлаа хийж цалингаа аваарай!")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
     # ── /courses ──────────────────────────────────────────────
-    @app_commands.command(name="courses", description="Боломжит курсуудыг харах")
-    async def courses(self, interaction: discord.Interaction):
-        completed = await get_completed_courses(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="courses", description="Боломжит курсуудыг харах")
+    async def courses(self, ctx: commands.Context):
+        completed = await get_completed_courses(ctx.author.id, ctx.guild.id)
 
         lines_owned = []
         lines_avail = []
@@ -1144,55 +1168,55 @@ class Character(commands.Cog):
             embed.add_field(name="🎓 Боломжит курсууд",  value="\n\n".join(lines_avail), inline=False)
         if not lines_owned and not lines_avail:
             embed.description = "Курс байхгүй байна."
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── /enroll ───────────────────────────────────────────────
-    @app_commands.command(name="enroll", description="Курст элсэж мэргэжил эзэмших")
+    @commands.hybrid_command(name="enroll", description="Курст элсэж мэргэжил эзэмших")
     @app_commands.describe(course="Элсэх курсийн нэр")
     @app_commands.autocomplete(course=_course_autocomplete)
-    async def enroll(self, interaction: discord.Interaction, course: str):
-        char = await get_char(interaction.user.id, interaction.guild_id)
+    async def enroll(self, ctx: commands.Context, course: str):
+        char = await get_char(ctx.author.id, ctx.guild.id)
         if not char:
-            await interaction.response.send_message(
+            await ctx.send(
                 "🎭 Эхлээд `/register` командаар дүр үүсгэнэ үү!", ephemeral=True
             )
             return
         _enroll_age = calc_age(dict(char))
         if _enroll_age < 16:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"🚫 Та **{_enroll_age} настай** байна. 16 наснаас курст элсэж болно!", ephemeral=True
             )
             return
 
         if course not in COURSES:
-            await interaction.response.send_message("❌ Тийм курс байхгүй!", ephemeral=True)
+            await ctx.send("❌ Тийм курс байхгүй!", ephemeral=True)
             return
 
-        completed = await get_completed_courses(interaction.user.id, interaction.guild_id)
+        completed = await get_completed_courses(ctx.author.id, ctx.guild.id)
         if course in completed:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"✅ **{COURSES[course]['name_mn']}**-д аль хэдийн элссэн байна!", ephemeral=True
             )
             return
 
         cdata = COURSES[course]
-        user  = await get_user(interaction.user.id, interaction.guild_id)
+        user  = await get_user(ctx.author.id, ctx.guild.id)
         if user["balance"] < cdata["cost"]:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Мөнгө хүрэлцэхгүй!\n"
                 f"Хэрэгтэй: **{cdata['cost']:,} ₮**  |  Таных: **{user['balance']:,} ₮**",
                 ephemeral=True,
             )
             return
 
-        await update_balance(interaction.user.id, interaction.guild_id, -cdata["cost"])
+        await update_balance(ctx.author.id, ctx.guild.id, -cdata["cost"])
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 """INSERT OR REPLACE INTO user_courses
                        (user_id, guild_id, course_name, completed_at)
                    VALUES (?,?,?,?)""",
                 (
-                    interaction.user.id, interaction.guild_id,
+                    ctx.author.id, ctx.guild.id,
                     course, datetime.utcnow().isoformat(),
                 ),
             )
@@ -1212,7 +1236,7 @@ class Character(commands.Cog):
             color=discord.Color.green(),
         )
         embed.add_field(name="💸 Зарцуулалт", value=f"{cdata['cost']:,} ₮", inline=True)
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
 
 async def setup(bot: commands.Bot):

@@ -320,26 +320,26 @@ class Family(commands.Cog):
         self.bot = bot
 
     # ── /marry ────────────────────────────────────────────────
-    @app_commands.command(name="marry", description="Хэн нэгэнд гэрлэлт санал болгох")
-    async def marry(self, interaction: discord.Interaction, member: discord.Member):
-        if member.id == interaction.user.id:
-            await interaction.response.send_message("❌ Өөртөө санал болгох боломжгүй!", ephemeral=True)
+    @commands.hybrid_command(name="marry", description="Хэн нэгэнд гэрлэлт санал болгох")
+    async def marry(self, ctx: commands.Context, member: discord.Member):
+        if member.id == ctx.author.id:
+            await ctx.send("❌ Өөртөө санал болгох боломжгүй!", ephemeral=True)
             return
         if member.bot:
-            await interaction.response.send_message("❌ Bot-тай гэрлэх боломжгүй!", ephemeral=True)
+            await ctx.send("❌ Bot-тай гэрлэх боломжгүй!", ephemeral=True)
             return
         # Block marrying adopted relatives (parent, child, sibling)
-        my_fam     = await get_family(interaction.user.id, interaction.guild_id)
-        their_fam  = await get_family(member.id, interaction.guild_id)
+        my_fam     = await get_family(ctx.author.id, ctx.guild.id)
+        their_fam  = await get_family(member.id, ctx.guild.id)
         my_kids    = json.loads(my_fam["children"] or "[]")
         their_kids = json.loads(their_fam["children"] or "[]")
         if (my_fam["parent_id"] == member.id          # target is my parent
-            or their_fam["parent_id"] == interaction.user.id  # I am their parent
+            or their_fam["parent_id"] == ctx.author.id  # I am their parent
             or member.id in my_kids                   # target is my adopted child
-            or interaction.user.id in their_kids      # I am their adopted child
+            or ctx.author.id in their_kids      # I am their adopted child
             or (my_fam["parent_id"] and my_fam["parent_id"] == their_fam["parent_id"])  # same parent
         ):
-            await interaction.response.send_message(
+            await ctx.send(
                 "Гэр бүлийн гишүүнтэй гэрлэх боломжгүй!",
                 ephemeral=True
             )
@@ -353,36 +353,36 @@ class Family(commands.Cog):
                 JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=? AND s.item_type='ring'
                 ORDER BY s.price DESC LIMIT 1
-            """, (interaction.user.id, interaction.guild_id))
+            """, (ctx.author.id, ctx.guild.id))
             ring = await cursor.fetchone()
 
         if not ring:
-            await interaction.response.send_message(
+            await ctx.send(
                 "💍 Гэрлэлтийн бөгж хэрэгтэй! `/shop ring` дээрээс авна уу.", ephemeral=True
             )
             return
 
-        proposer_fam = await get_family(interaction.user.id, interaction.guild_id)
-        target_fam   = await get_family(member.id, interaction.guild_id)
+        proposer_fam = await get_family(ctx.author.id, ctx.guild.id)
+        target_fam   = await get_family(member.id, ctx.guild.id)
 
         if proposer_fam["spouse_id"]:
-            await interaction.response.send_message("❌ Та аль хэдийн гэрлэсэн байна!", ephemeral=True)
+            await ctx.send("❌ Та аль хэдийн гэрлэсэн байна!", ephemeral=True)
             return
         if target_fam["spouse_id"]:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ {member.display_name} аль хэдийн гэрлэсэн байна!", ephemeral=True
             )
             return
 
         # Хүйс/чиг баримжааны нийцтэй байдал шалгах (хоёулаа дүртэй бол)
-        p_char = await get_char(interaction.user.id, interaction.guild_id)
-        t_char = await get_char(member.id, interaction.guild_id)
+        p_char = await get_char(ctx.author.id, ctx.guild.id)
+        t_char = await get_char(member.id, ctx.guild.id)
         if p_char and t_char:
             if not can_marry_check(p_char["gender"], p_char["sexuality"],
                                    t_char["gender"], t_char["sexuality"]):
                 p_sex = SEXUALITY_MN.get(p_char["sexuality"], p_char["sexuality"])
                 t_sex = SEXUALITY_MN.get(t_char["sexuality"], t_char["sexuality"])
-                await interaction.response.send_message(
+                await ctx.send(
                     f"💔 Таны бэлгийн чиг баримжаа нийцэхгүй байна!\n"
                     f"Та: {GENDER_MN.get(p_char['gender'])} · {p_sex}\n"
                     f"{member.display_name}: {GENDER_MN.get(t_char['gender'])} · {t_sex}",
@@ -393,7 +393,7 @@ class Family(commands.Cog):
         embed = discord.Embed(
             title="💍 Гэрлэлтийн санал!",
             description=(
-                f"{interaction.user.mention} → {member.mention}\n\n"
+                f"{ctx.author.mention} → {member.mention}\n\n"
                 f"**{member.display_name}**, гэрлэлтийн санал ирлээ!\n"
                 f"Зөвшөөрөх үү?"
             ),
@@ -401,22 +401,22 @@ class Family(commands.Cog):
         )
         embed.set_footer(text="60 секундын дотор хариулна уу!")
         view = MarriageView(
-            interaction.user, member,
+            ctx.author, member,
             ring["item_id"], ring["quantity"],
-            interaction.guild_id
+            ctx.guild.id
         )
-        await interaction.response.send_message(embed=embed, view=view)
+        await ctx.send(embed=embed, view=view)
 
     # ── /divorce ──────────────────────────────────────────────
-    @app_commands.command(name="divorce", description="Гэрлэлт цуцлах")
-    async def divorce(self, interaction: discord.Interaction):
-        fam = await get_family(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="divorce", description="Гэрлэлт цуцлах")
+    async def divorce(self, ctx: commands.Context):
+        fam = await get_family(ctx.author.id, ctx.guild.id)
         if not fam["spouse_id"]:
-            await interaction.response.send_message("❌ Та гэрлээгүй байна!", ephemeral=True)
+            await ctx.send("❌ Та гэрлээгүй байна!", ephemeral=True)
             return
 
         spouse_id  = fam["spouse_id"]
-        vchildren  = await get_virtual_children(interaction.guild_id, interaction.user.id, spouse_id)
+        vchildren  = await get_virtual_children(ctx.guild.id, ctx.author.id, spouse_id)
 
         if vchildren:
             # Show custody choice before divorcing
@@ -428,27 +428,27 @@ class Family(commands.Cog):
                 ),
                 color=discord.Color.red(),
             )
-            view = DivorceView(interaction.user.id, spouse_id, vchildren, interaction.guild_id)
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            view = DivorceView(ctx.author.id, spouse_id, vchildren, ctx.guild.id)
+            await ctx.send(embed=embed, view=view, ephemeral=True)
         else:
             # No virtual children → divorce immediately
             async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute("UPDATE family SET spouse_id=NULL WHERE user_id=? AND guild_id=?",
-                                 (interaction.user.id, interaction.guild_id))
+                                 (ctx.author.id, ctx.guild.id))
                 await db.execute("UPDATE family SET spouse_id=NULL WHERE user_id=? AND guild_id=?",
-                                 (spouse_id, interaction.guild_id))
+                                 (spouse_id, ctx.guild.id))
                 await db.commit()
 
-            spouse = interaction.guild.get_member(spouse_id)
-            await interaction.response.send_message(
-                f"💔 {interaction.user.mention} болон {spouse.mention if spouse else 'хань'} салалаа."
+            spouse = ctx.guild.get_member(spouse_id)
+            await ctx.send(
+                f"💔 {ctx.author.mention} болон {spouse.mention if spouse else 'хань'} салалаа."
             )
 
     # ── /adopt ────────────────────────────────────────────────
-    @app_commands.command(name="adopt", description="Хүүхэд үрчлэх (үрчлэлтийн бичиг хэрэгтэй)")
-    async def adopt(self, interaction: discord.Interaction, member: discord.Member):
-        if member.id == interaction.user.id or member.bot:
-            await interaction.response.send_message("❌ Боломжгүй!", ephemeral=True)
+    @commands.hybrid_command(name="adopt", description="Хүүхэд үрчлэх (үрчлэлтийн бичиг хэрэгтэй)")
+    async def adopt(self, ctx: commands.Context, member: discord.Member):
+        if member.id == ctx.author.id or member.bot:
+            await ctx.send("❌ Боломжгүй!", ephemeral=True)
             return
 
         async with aiosqlite.connect(DB_PATH) as db:
@@ -457,18 +457,18 @@ class Family(commands.Cog):
                 SELECT i.item_id, i.quantity FROM inventory i
                 JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=? AND s.item_type='adoption'
-            """, (interaction.user.id, interaction.guild_id))
+            """, (ctx.author.id, ctx.guild.id))
             doc = await cursor.fetchone()
 
         if not doc:
-            await interaction.response.send_message(
+            await ctx.send(
                 "📄 Үрчлэлтийн бичиг хэрэгтэй! `/shop other` дээрээс авна уу.", ephemeral=True
             )
             return
 
-        child_fam = await get_family(member.id, interaction.guild_id)
+        child_fam = await get_family(member.id, ctx.guild.id)
         if child_fam["parent_id"]:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ {member.display_name} аль хэдийн эцэг эхтэй!", ephemeral=True
             )
             return
@@ -476,24 +476,24 @@ class Family(commands.Cog):
         embed = discord.Embed(
             title="👶 Үрчлэлтийн санал!",
             description=(
-                f"{interaction.user.mention} таныг үрчлэхийг хүсч байна!\n\n"
+                f"{ctx.author.mention} таныг үрчлэхийг хүсч байна!\n\n"
                 f"**{member.display_name}**, зөвшөөрөх үү?"
             ),
             color=discord.Color.blue()
         )
         embed.set_footer(text="60 секундын дотор хариулна уу!")
         view = AdoptView(
-            interaction.user, member,
+            ctx.author, member,
             doc["item_id"], doc["quantity"],
-            interaction.guild_id
+            ctx.guild.id
         )
-        await interaction.response.send_message(embed=embed, view=view)
+        await ctx.send(embed=embed, view=view)
 
     # ── /family ───────────────────────────────────────────────
-    @app_commands.command(name="family", description="Гэр бүлийн мэдээлэл харах")
-    async def family_info(self, interaction: discord.Interaction, member: discord.Member = None):
-        target = member or interaction.user
-        fam    = await get_family(target.id, interaction.guild_id)
+    @commands.hybrid_command(name="family", description="Гэр бүлийн мэдээлэл харах")
+    async def family_info(self, ctx: commands.Context, member: discord.Member = None):
+        target = member or ctx.author
+        fam    = await get_family(target.id, ctx.guild.id)
 
         embed = discord.Embed(
             title=f"👨‍👩‍👧‍👦  {target.display_name}-н гэр бүл",
@@ -502,7 +502,7 @@ class Family(commands.Cog):
 
         # Хань
         if fam["spouse_id"]:
-            sp = interaction.guild.get_member(fam["spouse_id"])
+            sp = ctx.guild.get_member(fam["spouse_id"])
             embed.add_field(
                 name="💍 Хань",
                 value=sp.mention if sp else f"ID:{fam['spouse_id']}",
@@ -513,7 +513,7 @@ class Family(commands.Cog):
 
         # Эцэг/эх
         if fam["parent_id"]:
-            parent = interaction.guild.get_member(fam["parent_id"])
+            parent = ctx.guild.get_member(fam["parent_id"])
             embed.add_field(
                 name="👨‍👩‍👦 Эцэг/эх",
                 value=parent.mention if parent else f"ID:{fam['parent_id']}",
@@ -525,7 +525,7 @@ class Family(commands.Cog):
         adopted = json.loads(fam["children"] or "[]")
         adopted_lines = []
         for cid in adopted:
-            ch = interaction.guild.get_member(cid)
+            ch = ctx.guild.get_member(cid)
             adopted_lines.append(f"👤 {ch.mention if ch else f'ID:{cid}'} *(үрчлэгдсэн)*")
 
         # Virtual children — always show, regardless of current marriage status
@@ -534,7 +534,7 @@ class Family(commands.Cog):
             _vc_db.row_factory = aiosqlite.Row
             _vc_cur = await _vc_db.execute(
                 "SELECT * FROM virtual_children WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
-                (interaction.guild_id, target.id, target.id)
+                (ctx.guild.id, target.id, target.id)
             )
             all_vchildren = [dict(r) for r in await _vc_cur.fetchall()]
         for vc in all_vchildren:
@@ -564,9 +564,9 @@ class Family(commands.Cog):
 
         house_lines = [own_txt]
         if fam["spouse_id"]:
-            sp_fam  = await get_family(fam["spouse_id"], interaction.guild_id)
+            sp_fam  = await get_family(fam["spouse_id"], ctx.guild.id)
             sp_lv   = sp_fam["house_level"] or 0
-            sp_mem  = interaction.guild.get_member(fam["spouse_id"])
+            sp_mem  = ctx.guild.get_member(fam["spouse_id"])
             sp_name = sp_mem.display_name if sp_mem else "Хань"
             if sp_lv > 0:
                 sp_txt = f"💍 **{sp_name}** — {HOUSES[sp_lv][0]}  `{HOUSES[sp_lv][1]:,} ₮`"
@@ -589,7 +589,7 @@ class Family(commands.Cog):
                 JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=? AND s.item_type='vehicle'
                 ORDER BY s.price DESC
-            """, (target.id, interaction.guild_id))
+            """, (target.id, ctx.guild.id))
             vehicles = await cursor.fetchall()
 
         if vehicles:
@@ -604,14 +604,14 @@ class Family(commands.Cog):
                 value="\n".join(v_lines),
                 inline=False
             )
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── /buyhouse ─────────────────────────────────────────────
-    @app_commands.command(name="buyhouse", description="Байшин авах (10,000,000 ₮)")
-    async def buy_house(self, interaction: discord.Interaction):
-        fam = await get_family(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="buyhouse", description="Байшин авах (10,000,000 ₮)")
+    async def buy_house(self, ctx: commands.Context):
+        fam = await get_family(ctx.author.id, ctx.guild.id)
         if (fam["house_level"] or 0) > 0:
-            await interaction.response.send_message(
+            await ctx.send(
                 "🏠 Аль хэдийн байшинтай байна! `/upgradehouse` командаар ахиулна уу.",
                 ephemeral=True
             )
@@ -619,21 +619,21 @@ class Family(commands.Cog):
 
         price = HOUSES[1][1]
         name  = HOUSES[1][0]
-        user  = await get_user(interaction.user.id, interaction.guild_id)
+        user  = await get_user(ctx.author.id, ctx.guild.id)
 
         if user["balance"] < price:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Мөнгө хүрэлцэхгүй!\n"
                 f"Хэрэгтэй: **{price:,} ₮**  |  Таных: **{user['balance']:,} ₮**",
                 ephemeral=True
             )
             return
 
-        await update_balance(interaction.user.id, interaction.guild_id, -price)
+        await update_balance(ctx.author.id, ctx.guild.id, -price)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE family SET house_level=1 WHERE user_id=? AND guild_id=?",
-                (interaction.user.id, interaction.guild_id)
+                (ctx.author.id, ctx.guild.id)
             )
             await db.commit()
 
@@ -642,21 +642,21 @@ class Family(commands.Cog):
             description=f"{name} худалдан авлаа!\n**{price:,} ₮** зарцуулагдлаа.",
             color=discord.Color.green()
         )
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── /upgradehouse ─────────────────────────────────────────
-    @app_commands.command(name="upgradehouse", description="Байшинг дараагийн түвшинд ахиулах (60% зарж, шинийг авна)")
-    async def upgrade_house(self, interaction: discord.Interaction):
-        fam    = await get_family(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="upgradehouse", description="Байшинг дараагийн түвшинд ахиулах (60% зарж, шинийг авна)")
+    async def upgrade_house(self, ctx: commands.Context):
+        fam    = await get_family(ctx.author.id, ctx.guild.id)
         cur_lv = fam["house_level"] or 0
 
         if cur_lv == 0:
-            await interaction.response.send_message(
+            await ctx.send(
                 "❌ Эхлээд `/buyhouse` командаар байшин авна уу!", ephemeral=True
             )
             return
         if cur_lv >= 3:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"✅ Байшин хамгийн дээд түвшинд байна — **{HOUSES[3][0]}**!", ephemeral=True
             )
             return
@@ -666,9 +666,9 @@ class Family(commands.Cog):
         buy_price  = HOUSES[next_lv][1]
         net_cost   = buy_price - sell_price
 
-        user = await get_user(interaction.user.id, interaction.guild_id)
+        user = await get_user(ctx.author.id, ctx.guild.id)
         if user["balance"] < net_cost:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"❌ Мөнгө хүрэлцэхгүй!\n"
                 f"Зарах ({int(HOUSE_UPGRADE_RATIO*100)}%): **+{sell_price:,} ₮**\n"
                 f"Шинэ байшин ({HOUSES[next_lv][0]}): **{buy_price:,} ₮**\n"
@@ -677,11 +677,11 @@ class Family(commands.Cog):
             )
             return
 
-        await update_balance(interaction.user.id, interaction.guild_id, -net_cost)
+        await update_balance(ctx.author.id, ctx.guild.id, -net_cost)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE family SET house_level=? WHERE user_id=? AND guild_id=?",
-                (next_lv, interaction.user.id, interaction.guild_id)
+                (next_lv, ctx.author.id, ctx.guild.id)
             )
             await db.commit()
 
@@ -695,26 +695,26 @@ class Family(commands.Cog):
             ),
             color=discord.Color.green()
         )
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── /sellhouse ────────────────────────────────────────────
-    @app_commands.command(name="sellhouse", description="Байшингаа зарах (үнийн 60% буцаан авна)")
-    async def sell_house(self, interaction: discord.Interaction):
-        fam    = await get_family(interaction.user.id, interaction.guild_id)
+    @commands.hybrid_command(name="sellhouse", description="Байшингаа зарах (үнийн 60% буцаан авна)")
+    async def sell_house(self, ctx: commands.Context):
+        fam    = await get_family(ctx.author.id, ctx.guild.id)
         cur_lv = fam["house_level"] or 0
 
         if cur_lv == 0:
-            await interaction.response.send_message("❌ Байшин байхгүй байна!", ephemeral=True)
+            await ctx.send("❌ Байшин байхгүй байна!", ephemeral=True)
             return
 
         refund     = int(HOUSES[cur_lv][1] * HOUSE_SELL_RATIO)
         house_name = HOUSES[cur_lv][0]
 
-        await update_balance(interaction.user.id, interaction.guild_id, refund)
+        await update_balance(ctx.author.id, ctx.guild.id, refund)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "UPDATE family SET house_level=0 WHERE user_id=? AND guild_id=?",
-                (interaction.user.id, interaction.guild_id)
+                (ctx.author.id, ctx.guild.id)
             )
             await db.commit()
 
@@ -723,13 +723,13 @@ class Family(commands.Cog):
             description=f"{house_name} зарагдлаа.\n**{refund:,} ₮** буцаан авлаа.",
             color=discord.Color.orange()
         )
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
 
     # ── /payschool ────────────────────────────────────────────
-    @app_commands.command(name="payschool", description="Виртуал хүүхдийнхээ коллежийн төлбөр төлөх")
-    async def payschool(self, interaction: discord.Interaction):
-        uid, gid = interaction.user.id, interaction.guild_id
+    @commands.hybrid_command(name="payschool", description="Виртуал хүүхдийнхээ коллежийн төлбөр төлөх")
+    async def payschool(self, ctx: commands.Context):
+        uid, gid = ctx.author.id, ctx.guild.id
 
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
@@ -740,14 +740,14 @@ class Family(commands.Cog):
             children = [dict(r) for r in await cur.fetchall()]
 
         if not children:
-            await interaction.response.send_message(
+            await ctx.send(
                 "Таньд виртуал хүүхэд байхгүй байна.", ephemeral=True
             )
             return
 
         eligible = [c for c in children if calc_age_dt(c["birth_time"]) >= 16 and not c["college"]]
         if not eligible:
-            await interaction.response.send_message(
+            await ctx.send(
                 "Коллежид орох насанд (16+) хүрсэн хүүхэд байхгүй / аль хэдийн төгсөн.", ephemeral=True
             )
             return
@@ -755,7 +755,7 @@ class Family(commands.Cog):
         user = await get_user(uid, gid)
         total_cost = CHILD_COLLEGE_COST * len(eligible)
         if user["balance"] < total_cost:
-            await interaction.response.send_message(
+            await ctx.send(
                 f"Мөнгө хүрэлцэхгүй! Хэрэгтэй: **{total_cost:,} ₮**  | Таных: **{user['balance']:,} ₮**",
                 ephemeral=True
             )
@@ -770,7 +770,7 @@ class Family(commands.Cog):
             await db.commit()
 
         names = ", ".join(f"**{c['name']}**" for c in eligible)
-        await interaction.response.send_message(
+        await ctx.send(
             f"🎓 {names} коллежид орлоо!\n"
             f"💸 **{total_cost:,} ₮** зарцуулагдлаа."
         )

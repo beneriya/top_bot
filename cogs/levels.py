@@ -65,13 +65,13 @@ class Levels(commands.Cog):
                         )
 
     # ── /profile ──────────────────────────────────────────────────
-    @app_commands.command(name="profile", description="Өөрийн эсвэл бусдын дэлгэрэнгүй профайл харах")
-    async def profile(self, interaction: discord.Interaction, member: discord.Member = None):
-        target = member or interaction.user
-        await interaction.response.defer()
+    @commands.hybrid_command(name="profile", description="Өөрийн эсвэл бусдын дэлгэрэнгүй профайл харах")
+    async def profile(self, ctx: commands.Context, member: discord.Member = None):
+        target = member or ctx.author
+        await ctx.defer()
 
-        user = await get_user(target.id, interaction.guild_id)
-        char = await get_char(target.id, interaction.guild_id)
+        user = await get_user(target.id, ctx.guild.id)
+        char = await get_char(target.id, ctx.guild.id)
 
         # ── XP progress bar ───────────────────────────────────────
         needed_xp = xp_for_level(user["level"])
@@ -84,7 +84,7 @@ class Levels(commands.Cog):
             # Balance leaderboard rank
             cur = await db.execute(
                 "SELECT COUNT(*)+1 FROM users WHERE guild_id=? AND balance > ?",
-                (interaction.guild_id, user["balance"])
+                (ctx.guild.id, user["balance"])
             )
             bal_rank = (await cur.fetchone())[0]
 
@@ -92,14 +92,14 @@ class Levels(commands.Cog):
             cur = await db.execute(
                 "SELECT COUNT(*)+1 FROM users WHERE guild_id=?"
                 " AND (level > ? OR (level=? AND xp > ?))",
-                (interaction.guild_id, user["level"], user["level"], user["xp"])
+                (ctx.guild.id, user["level"], user["level"], user["xp"])
             )
             lv_rank = (await cur.fetchone())[0]
 
             # Family
             fam_cur = await db.execute(
                 "SELECT * FROM family WHERE user_id=? AND guild_id=?",
-                (target.id, interaction.guild_id)
+                (target.id, ctx.guild.id)
             )
             fam_row = await fam_cur.fetchone()
 
@@ -109,7 +109,7 @@ class Levels(commands.Cog):
                        COALESCE(SUM(CASE WHEN s.item_type IN ('weapon','armor') THEN 1 ELSE i.quantity END),0) AS total_qty
                 FROM inventory i JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=?
-            """, (target.id, interaction.guild_id))
+            """, (target.id, ctx.guild.id))
             inv_row = await inv_cur.fetchone()
 
             # Most expensive vehicle + count
@@ -118,14 +118,14 @@ class Levels(commands.Cog):
                 FROM inventory i JOIN shop s ON i.item_id = s.item_id
                 WHERE i.user_id=? AND i.guild_id=? AND s.item_type='vehicle'
                 ORDER BY s.price DESC
-            """, (target.id, interaction.guild_id))
+            """, (target.id, ctx.guild.id))
             vehicles = await veh_cur.fetchall()
 
         # ── Family info ───────────────────────────────────────────
         if fam_row:
             sp_id  = fam_row["spouse_id"]
             kids   = json.loads(fam_row["children"] or "[]")
-            sp_mem = interaction.guild.get_member(sp_id) if sp_id else None
+            sp_mem = ctx.guild.get_member(sp_id) if sp_id else None
             marriage_txt = f"💍 {sp_mem.display_name}-тай гэрлэсэн" if sp_mem else (
                 f"💍 ID:{sp_id}" if sp_id else "💔 Гэрлээгүй"
             )
@@ -184,7 +184,7 @@ class Levels(commands.Cog):
         async with aiosqlite.connect(DB_PATH) as db2:
             db2.row_factory = aiosqlite.Row
             _ub = await db2.execute("SELECT bank FROM users WHERE user_id=? AND guild_id=?",
-                                    (target.id, interaction.guild_id))
+                                    (target.id, ctx.guild.id))
             _ubr = await _ub.fetchone()
         bank_bal = (_ubr["bank"] if _ubr and _ubr["bank"] else 0)
         total_w  = user["balance"] + bank_bal
@@ -252,7 +252,7 @@ class Levels(commands.Cog):
             gender = GENDER_MN.get(char.get("gender",""), "—")
             job_id = char.get("job_id")
             job_txt = f"{JOBS[job_id]['emoji']} {JOBS[job_id]['name_mn']}" if job_id and job_id in JOBS else "💼 Ажилгүй"
-            completed = await get_completed_courses(target.id, interaction.guild_id)
+            completed = await get_completed_courses(target.id, ctx.guild.id)
             if completed:
                 sorted_c = sorted(
                     completed,
@@ -284,21 +284,21 @@ class Levels(commands.Cog):
         embed.add_field(name="🏴 Шорон", value=prison_val, inline=False)
 
         embed.set_footer(text=f"TOP Bot  •  {target.name}  •  /profile")
-        await interaction.followup.send(embed=embed)
+        await ctx.send(embed=embed)
     # ── /top ──────────────────────────────────────────────────────
-    @app_commands.command(name="top", description="Серверийн TOP 10 идэвхтэй хүмүүс")
-    async def leaderboard(self, interaction: discord.Interaction):
+    @commands.hybrid_command(name="top", description="Серверийн TOP 10 идэвхтэй хүмүүс")
+    async def leaderboard(self, ctx: commands.Context):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cur = await db.execute(
                 "SELECT user_id, level, xp FROM users WHERE guild_id=?"
                 " ORDER BY level DESC, xp DESC LIMIT 10",
-                (interaction.guild_id,)
+                (ctx.guild.id,)
             )
             rows = await cur.fetchall()
 
         if not rows:
-            await interaction.response.send_message("⚠️ Мэдээлэл байхгүй.", ephemeral=True)
+            await ctx.send("⚠️ Мэдээлэл байхгүй.", ephemeral=True)
             return
         medals = ["🥇", "🥈", "🥉"]
         top_xp = (rows[0]["level"] * 1000 + rows[0]["xp"]) or 1
@@ -308,7 +308,7 @@ class Levels(commands.Cog):
             return "▰" * filled + "▱" * (length - filled)
         lines = []
         for i, row in enumerate(rows):
-            m  = interaction.guild.get_member(row["user_id"])
+            m  = ctx.guild.get_member(row["user_id"])
             nm = (m.display_name if m else f"User#{row['user_id']}")[:16]
             med = medals[i] if i < 3 else f"`#{i+1:>2}`"
             bar = lbar(row["level"], row["xp"], top_xp)
@@ -319,19 +319,19 @@ class Levels(commands.Cog):
             color=0xFEE75C
         )
         embed.set_footer(text="TOP Bot  •  /top  •  Түвшин + XP-р эрэмбэлсэн")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
     # ── /level_role_add ───────────────────────────────────────────
-    @app_commands.command(name="level_role_add", description="Тодорхой түвшинд role өгөх тохиргоо [Admin]")
+    @commands.hybrid_command(name="level_role_add", description="Тодорхой түвшинд role өгөх тохиргоо [Admin]")
     @app_commands.checks.has_permissions(administrator=True)
-    async def set_level_role(self, interaction: discord.Interaction, level: int, role: discord.Role):
+    async def set_level_role(self, ctx: commands.Context, level: int, role: discord.Role):
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "INSERT OR REPLACE INTO level_roles (guild_id,level,role_id) VALUES (?,?,?)",
-                (interaction.guild_id, level, role.id)
+                (ctx.guild.id, level, role.id)
             )
             await db.commit()
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ **{level}** дүнгийн түвшинд {role.mention} role өгөх болно!"
         )
 

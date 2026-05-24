@@ -9,15 +9,15 @@ class Stats(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="stats", description="Гишүүний дэлгэрэнгүй статистик")
-    async def stats(self, interaction: discord.Interaction, member: discord.Member = None):
-        target = member or interaction.user
-        user = await get_user(target.id, interaction.guild_id)
+    @commands.hybrid_command(name="stats", description="Гишүүний дэлгэрэнгүй статистик")
+    async def stats(self, ctx: commands.Context, member: discord.Member = None):
+        target = member or ctx.author
+        user = await get_user(target.id, ctx.guild.id)
 
         async with aiosqlite.connect(DB_PATH) as db:
             cursor = await db.execute(
                 "SELECT COUNT(*) FROM users WHERE guild_id=? AND balance > ?",
-                (interaction.guild_id, user["balance"])
+                (ctx.guild.id, user["balance"])
             )
             row = await cursor.fetchone()
             rank = row[0] + 1
@@ -86,11 +86,11 @@ class Stats(commands.Cog):
             inline=False
         )
         embed.set_footer(text=f"TOP Bot  •  /stats  •  {joined} нэгдсэн")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
-    @app_commands.command(name="serverinfo", description="Серверийн статистик харах")
-    async def serverinfo(self, interaction: discord.Interaction):
-        guild = interaction.guild
+    @commands.hybrid_command(name="serverinfo", description="Серверийн статистик харах")
+    async def serverinfo(self, ctx: commands.Context):
+        guild = ctx.guild
         async with aiosqlite.connect(DB_PATH) as db:
             cursor = await db.execute(
                 "SELECT COUNT(*), SUM(messages), SUM(balance) FROM users WHERE guild_id=?",
@@ -111,20 +111,20 @@ class Stats(commands.Cog):
         embed.add_field(name="💰 Эдийн засаг", value=f"**{row[2] or 0:,} ₮**",         inline=True)
         embed.add_field(name="📅 Үүссэн",      value=created,                           inline=True)
         embed.set_footer(text="TOP Bot  •  /serverinfo")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
-    @app_commands.command(name="active", description="Серверийн хамгийн идэвхтэй гишүүд")
-    async def most_active(self, interaction: discord.Interaction):
+    @commands.hybrid_command(name="active", description="Серверийн хамгийн идэвхтэй гишүүд")
+    async def most_active(self, ctx: commands.Context):
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 "SELECT user_id, messages FROM users WHERE guild_id=? ORDER BY messages DESC LIMIT 10",
-                (interaction.guild_id,)
+                (ctx.guild.id,)
             )
             rows = await cursor.fetchall()
 
         if not rows:
-            await interaction.response.send_message("⚠️ Мэдээлэл байхгүй.", ephemeral=True)
+            await ctx.send("⚠️ Мэдээлэл байхгүй.", ephemeral=True)
             return
         top_msg = rows[0]["messages"] or 1
         medals  = ["🥇", "🥈", "🥉"]
@@ -133,7 +133,7 @@ class Stats(commands.Cog):
             return "▰" * filled + "▱" * (length - filled)
         lines = []
         for i, row in enumerate(rows):
-            m   = interaction.guild.get_member(row["user_id"])
+            m   = ctx.guild.get_member(row["user_id"])
             nm  = (m.display_name if m else f"User#{row['user_id']}")[:16]
             med = medals[i] if i < 3 else f"`#{i+1:>2}`"
             bar = mbar(row["messages"], top_msg)
@@ -145,7 +145,7 @@ class Stats(commands.Cog):
             color=0x57F287
         )
         embed.set_footer(text="TOP Bot  •  /active  •  Мессежний тоогоор эрэмбэлсэн")
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Stats(bot))

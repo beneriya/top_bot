@@ -249,8 +249,8 @@ class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="help", description="Бүх командын жагсаалт харах")
-    async def help(self, interaction: discord.Interaction):
+    @commands.hybrid_command(name="help", description="Бүх командын жагсаалт харах")
+    async def help(self, ctx: commands.Context):
         client_id  = self.bot.user.id
         invite_url = (
             f"https://discord.com/oauth2/authorize"
@@ -270,7 +270,7 @@ class Help(commands.Cog):
         )
         view.add_item(invite_btn)
 
-        await interaction.response.send_message(embed=embed, view=view)
+        await ctx.send(embed=embed, view=view)
 
 
 async def setup(bot):
