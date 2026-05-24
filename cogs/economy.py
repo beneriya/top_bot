@@ -44,12 +44,6 @@ class Economy(commands.Cog):
         embed.set_footer(text=f"TOP Bot  •  /balance")
         await ctx.send(embed=embed)
 
-        embed.add_field(name="💵 Pocket",  value=f"**{user['balance']:,} ₮**",    inline=True)
-        embed.add_field(name="🏦 Bank",    value=f"**{bank_bal:,} ₮**",           inline=True)
-        embed.add_field(name="💎 Нийт",    value=f"**{total:,} ₮**",              inline=True)
-        embed.set_footer(text=f"TOP Bot  •  /balance")
-        await ctx.send(embed=embed)
-
     # ── Ажил хийж мөнгө олох ──────────────────────────────────
     @commands.hybrid_command(name="work", description="Ажил хийж төгрөг олох (30 минут тутамд)")
     async def work(self, ctx: commands.Context):
