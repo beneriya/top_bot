@@ -5,7 +5,7 @@ import aiosqlite
 from datetime import datetime, timedelta
 from database import DB_PATH, get_user
 from cogs.character import JOBS, COURSES, GENDER_MN, SEXUALITY_MN, calc_age, get_char
-from config import WORK_COOLDOWN_MINUTES, BALANCE_CAP, HOURS_PER_GAME_YEAR, OWNER_ID
+from config import WORK_COOLDOWN_MINUTES, BALANCE_CAP, HOURS_PER_GAME_YEAR, OWNER_ID, MANAGER_ROLE_NAME
 
 def admin_only():
     async def predicate(ctx: commands.Context) -> bool:
@@ -15,6 +15,23 @@ def admin_only():
         member = guild.get_member(ctx.author.id)
         if not member or not (member.guild_permissions.administrator or ctx.author.id == OWNER_ID):
             await ctx.send("🚫 Зөвхөн admin ашиглах боломжтой!", ephemeral=True)
+            return False
+        return True
+    return commands.check(predicate)
+
+def manager_only():
+    """Admin эсвэл Manager role-той хүн ашиглаж болно."""
+    async def predicate(ctx: commands.Context) -> bool:
+        guild = ctx.guild
+        if guild is None:
+            return False
+        member = guild.get_member(ctx.author.id)
+        if not member:
+            return False
+        is_admin   = member.guild_permissions.administrator or ctx.author.id == OWNER_ID
+        is_manager = any(r.name == MANAGER_ROLE_NAME for r in member.roles)
+        if not (is_admin or is_manager):
+            await ctx.send(f"🚫 Зөвхөн **Admin** эсвэл **{MANAGER_ROLE_NAME}** role-той хүн ашиглах боломжтой!", ephemeral=True)
             return False
         return True
     return commands.check(predicate)
@@ -70,7 +87,7 @@ class Admin(commands.Cog):
     # ── /adminsetage ──────────────────────────────────────────
     @commands.hybrid_command(name="adminsetage", description="[Admin] Хэрэглэгчийн насыг тохируулах")
     @app_commands.describe(member="Хэрэглэгч", age="Шинэ нас (5–90)")
-    @admin_only()
+    @manager_only()
     async def adminsetage(self, ctx: commands.Context, member: discord.Member, age: int):
         if not 5 <= age <= 90:
             await ctx.send("❌ Нас 5–90 хооронд байх ёстой!", ephemeral=True)
@@ -98,7 +115,7 @@ class Admin(commands.Cog):
         app_commands.Choice(name="👨 Эрэгтэй", value="male"),
         app_commands.Choice(name="👩 Эмэгтэй", value="female"),
     ])
-    @admin_only()
+    @manager_only()
     async def adminsetgender(self, ctx: commands.Context, member: discord.Member, gender: str):
         char = await get_char(member.id, ctx.guild.id)
         if not char:
@@ -123,7 +140,7 @@ class Admin(commands.Cog):
         app_commands.Choice(name="🏳️‍🌈 Геи / Лесбиян", value="gay"),
         app_commands.Choice(name="💜 Бисексуал",      value="bisexual"),
     ])
-    @admin_only()
+    @manager_only()
     async def adminsetsexuality(self, ctx: commands.Context, member: discord.Member, sexuality: str):
         char = await get_char(member.id, ctx.guild.id)
         if not char:
@@ -143,7 +160,7 @@ class Admin(commands.Cog):
     # ── /adminsetjob ──────────────────────────────────────────
     @commands.hybrid_command(name="adminsetjob", description="[Admin] Ажлыг cooldown алгасаад тохируулах")
     @app_commands.describe(member="Хэрэглэгч", job="Ажлын ID")
-    @admin_only()
+    @manager_only()
     async def adminsetjob(self, ctx: commands.Context, member: discord.Member, job: str):
         if job not in JOBS and job != "none":
             await ctx.send(
@@ -220,7 +237,7 @@ class Admin(commands.Cog):
     # ── /adminsetlevel ────────────────────────────────────────
     @commands.hybrid_command(name="adminsetlevel", description="[Admin] Level тохируулах")
     @app_commands.describe(member="Хэрэглэгч", level="Шинэ level (1–100)")
-    @admin_only()
+    @manager_only()
     async def adminsetlevel(self, ctx: commands.Context, member: discord.Member, level: int):
         if not 1 <= level <= 100:
             await ctx.send("❌ Level 1–100 хооронд байх ёстой!", ephemeral=True)
@@ -252,7 +269,7 @@ class Admin(commands.Cog):
     # ── /adminsetprison ───────────────────────────────────────
     @commands.hybrid_command(name="adminsetprison", description="[Admin] Хэрэглэгчийг шоронд хийх")
     @app_commands.describe(member="Хэрэглэгч", minutes="Хугацаа (минутаар)")
-    @admin_only()
+    @manager_only()
     async def adminsetprison(self, ctx: commands.Context, member: discord.Member, minutes: int):
         if minutes <= 0:
             await ctx.send("❌ Хугацаа 0-с их байх ёстой!", ephemeral=True)
@@ -272,7 +289,7 @@ class Admin(commands.Cog):
     # ── /adminresetcooldown ───────────────────────────────────
     @commands.hybrid_command(name="adminresetcooldown", description="[Admin] Work/setjob cooldown цэвэрлэх")
     @app_commands.describe(member="Хэрэглэгч")
-    @admin_only()
+    @manager_only()
     async def adminresetcooldown(self, ctx: commands.Context, member: discord.Member):
         await get_user(member.id, ctx.guild.id)
         async with aiosqlite.connect(DB_PATH) as db:
@@ -409,13 +426,16 @@ class Admin(commands.Cog):
             child = await cur.fetchone()
             if not child:
                 await ctx.send(
-                    f"❌ **{child_id}** ID-тай виртуал хүүхэд энэ серверт байхгүй!", ephemeral=True
+                    f"❌ **{child_id}** ID-тай виртуал хүүхэд энэ сервер байхгүй байна!", ephemeral=True
                 )
                 return
-            await db.execute("DELETE FROM virtual_children WHERE child_id=?", (child_id,))
-            await db.execute("DELETE FROM child_calc       WHERE child_id=?", (child_id,))
-            await db.execute("DELETE FROM child_votes      WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
-                             (ctx.guild.id, child["parent1_id"], child["parent2_id"]))
+            await db.execute(
+                "DELETE FROM child_votes WHERE guild_id=? AND (parent1_id=? OR parent2_id=?)",
+                (ctx.guild.id, child["parent1_id"], child["parent2_id"])
+            )
+            await db.execute("DELETE FROM virtual_children WHERE child_id=? AND guild_id=?",
+                             (child_id, ctx.guild.id))
+            await db.execute("DELETE FROM child_calc WHERE child_id=?", (child_id,))
             await db.commit()
 
         gender_mn = "хүү" if child["gender"] == "male" else "охин"
@@ -423,6 +443,36 @@ class Admin(commands.Cog):
             f"🗑️ **{child['name']}** ({gender_mn}, ID:{child_id}) виртуал хүүхэд устгагдлаа.",
             ephemeral=True
         )
+
+    # ── /setmanager ───────────────────────────────────────────
+    @commands.hybrid_command(name="setmanager", description="[Admin] Хэрэглэгчид Manager role олгох")
+    @app_commands.describe(member="Manager болгох хүн")
+    @admin_only()
+    async def setmanager(self, ctx: commands.Context, member: discord.Member):
+        role = discord.utils.get(ctx.guild.roles, name=MANAGER_ROLE_NAME)
+        if not role:
+            role = await ctx.guild.create_role(
+                name=MANAGER_ROLE_NAME,
+                color=discord.Color.orange(),
+                reason="TOP Bot Manager role"
+            )
+        if role in member.roles:
+            await ctx.send(f"⚠️ **{member.display_name}** аль хэдийн Manager байна!", ephemeral=True)
+            return
+        await member.add_roles(role)
+        await ctx.send(f"✅ **{member.display_name}**-д **Manager** role олголоо.", ephemeral=True)
+
+    # ── /removemanager ────────────────────────────────────────
+    @commands.hybrid_command(name="removemanager", description="[Admin] Хэрэглэгчийн Manager role хасах")
+    @app_commands.describe(member="Manager хасах хүн")
+    @admin_only()
+    async def removemanager(self, ctx: commands.Context, member: discord.Member):
+        role = discord.utils.get(ctx.guild.roles, name=MANAGER_ROLE_NAME)
+        if not role or role not in member.roles:
+            await ctx.send(f"⚠️ **{member.display_name}** Manager биш байна!", ephemeral=True)
+            return
+        await member.remove_roles(role)
+        await ctx.send(f"✅ **{member.display_name}**-аас **Manager** role хасагдлаа.", ephemeral=True)
 
 
 async def setup(bot):

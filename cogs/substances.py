@@ -6,6 +6,12 @@ import asyncio
 import calendar
 from datetime import datetime, timedelta
 from database import DB_PATH, get_user, update_balance
+from config import MANAGER_ROLE_NAME, OWNER_ID
+
+def _is_admin_or_manager(member: discord.Member, author_id: int) -> bool:
+    if member.guild_permissions.administrator or author_id == OWNER_ID:
+        return True
+    return any(r.name == MANAGER_ROLE_NAME for r in member.roles)
 from cogs.character import get_char, calc_age
 
 MAX_LEVEL   = 30
@@ -495,9 +501,12 @@ class Substances(commands.Cog):
     # ────────────────────────────────────────────────────────────
     #  /releaseprison  [Admin]
     # ────────────────────────────────────────────────────────────
-    @commands.hybrid_command(name="releaseprison", description="Хэрэглэгчийг эрүүлжүүлэхээс гаргах [Admin]")
-    @app_commands.checks.has_permissions(administrator=True)
+    @commands.hybrid_command(name="releaseprison", description="Хэрэглэгчийг эрүүлжүүлэхээс гаргах [Admin/Manager]")
     async def releaseprison(self, ctx: commands.Context, member: discord.Member):
+        m = ctx.guild.get_member(ctx.author.id)
+        if not m or not _is_admin_or_manager(m, ctx.author.id):
+            await ctx.send(f"🚫 Зөвхөн **Admin** эсвэл **{MANAGER_ROLE_NAME}** ашиглах боломжтой!", ephemeral=True)
+            return
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
@@ -533,11 +542,6 @@ class Substances(commands.Cog):
             color=discord.Color.green()
         )
         await ctx.send(embed=embed)
-
-    @releaseprison.error
-    async def releaseprison_error(self, ctx: commands.Context, error):
-        if isinstance(error, app_commands.MissingPermissions):
-            await ctx.send("❌ Зөвхөн Admin хэрэглэх боломжтой!", ephemeral=True)
 
 
 async def setup(bot):
