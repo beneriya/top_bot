@@ -164,7 +164,7 @@ class PrisonTree(app_commands.CommandTree):
 
 # ── Bot setup ────────────────────────────────────────────────────
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="t", intents=intents, tree_cls=PrisonTree)
+bot = commands.Bot(command_prefix="t", intents=intents, tree_cls=PrisonTree, help_command=None)
 
 @bot.check
 async def global_prefix_check(ctx: commands.Context):

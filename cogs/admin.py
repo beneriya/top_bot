@@ -5,7 +5,7 @@ import aiosqlite
 from datetime import datetime, timedelta
 from database import DB_PATH, get_user
 from cogs.character import JOBS, COURSES, GENDER_MN, SEXUALITY_MN, calc_age, get_char
-from config import WORK_COOLDOWN_MINUTES, BALANCE_CAP, HOURS_PER_GAME_YEAR
+from config import WORK_COOLDOWN_MINUTES, BALANCE_CAP, HOURS_PER_GAME_YEAR, OWNER_ID
 
 def admin_only():
     async def predicate(ctx: commands.Context) -> bool:
