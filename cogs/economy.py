@@ -220,10 +220,10 @@ class Economy(commands.Cog):
         await ctx.send(embed=embed)
 
     # ── Мөнгө шилжүүлэх ───────────────────────────────────────
-    @commands.hybrid_command(name="transfer", description="Өөр хүнд мөнгө шилжүүлэх (max 50,000₮, 1 цаг cooldown)")
-    @app_commands.describe(member="Хүлээн авагч", amount="Дүн (хамгийн их 50,000₮)")
+    @commands.hybrid_command(name="transfer", description="Өөр хүнд мөнгө шилжүүлэх (max 300,000₮, 1 цаг cooldown)")
+    @app_commands.describe(member="Хүлээн авагч", amount="Дүн (хамгийн их 300,000₮)")
     async def transfer(self, ctx: commands.Context, member: discord.Member, amount: int):
-        TRANSFER_MAX = 50_000
+        TRANSFER_MAX = 300_000
         TRANSFER_CD_HOURS = 1
 
         if amount <= 0:
