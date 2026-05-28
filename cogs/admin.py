@@ -347,7 +347,7 @@ class Admin(commands.Cog):
         await get_user(member.id, ctx.guild.id)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
-                "UPDATE users SET prison_until=? WHERE user_id=? AND guild_id=?",
+                "UPDATE users SET prison_until=?, prison_count=COALESCE(prison_count,0)+1 WHERE user_id=? AND guild_id=?",
                 (release.isoformat(), member.id, ctx.guild.id)
             )
             await db.commit()
