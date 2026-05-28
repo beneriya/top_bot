@@ -496,6 +496,60 @@ async def init_db():
             )
             await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('shop_luxury_v1','1')")
 
+        # ── Luxury vehicles, gems, accessories (shop_luxury_v2) ──────
+        cur_lux2 = await db.execute("SELECT value FROM bot_config WHERE key='shop_luxury_v2'")
+        if not await cur_lux2.fetchone():
+            luxury_v2 = [
+                # ── Тансаг хөдлөх хөрөнгө (luxury vehicles) ──────────
+                ("Lamborghini",       "Lamborghini Huracán — 630 морины хүч",         8_000_000, "🏎️","vehicle",None,0),
+                ("Ferrari",           "Ferrari 488 GTB — Итальян тансаг спорт машин",12_000_000, "🔴","vehicle",None,0),
+                ("Rolls-Royce",       "Rolls-Royce Ghost — дэлхийн хамгийн тансаг",  20_000_000, "🖤","vehicle",None,0),
+                ("Bugatti",           "Bugatti Chiron — 1500 морины хүч, 420км/ц",   50_000_000, "💙","vehicle",None,0),
+                ("Хувийн онгоц",      "Гulfstream G700 хувийн нисэх онгоц",         100_000_000, "✈️","vehicle",None,0),
+                ("Яхт",               "Тансаг 50м яхт — далайн аялал",              200_000_000, "🛳️","vehicle",None,0),
+                ("Сансрын тийз",      "SpaceX-ийн сансрын аялалын тийз",          1_000_000_000, "🚀","vehicle",None,0),
+                # ── Тансаг үнэт чулуу (luxury gems) ──────────────────
+                ("Платин",            "Цэвэр платин блок — ховор металл",             200_000, "⬜","gem",None,0),
+                ("Хар Бриллиант",     "Ховор хар бриллиант — Black Diamond",         500_000, "🖤","gem",None,0),
+                ("Пинк Диамонд",      "Pink Diamond — дэлхийд хамгийн ховор чулуу",1_000_000, "🩷","gem",None,0),
+                ("Цэнхэр Диамонд",    "Hope Diamond — алдарт цэнхэр бриллиант",    3_000_000, "💠","gem",None,0),
+                ("Паарше Диамонд",    "Парче — дэлхийн хамгийн том бриллиант",    10_000_000, "💎","gem",None,0),
+                # ── Тансаг гоёл чимэглэл (luxury accessories) ─────────
+                ("Патек Филиппе",     "Patek Philippe Nautilus — Швейцарь хамгийн тансаг цаг",  500_000, "⌚","accessory",None,0),
+                ("Ричард Миллэ",      "Richard Mille RM 11 — дэлхийн хамгийн үнэтэй цаг",    2_000_000, "⌚","accessory",None,0),
+                ("Алтан Малгай",      "24К алтаар бүрсэн тансаг малгай",                         80_000, "🎩","accessory",None,0),
+                ("Бриллиант Гинж",    "Бриллиант чулуутай алтан гинж хүзүүвч",                  800_000, "💎","accessory",None,0),
+                ("Луи Виттон Цүнх",   "Louis Vuitton оригинал тансаг цүнх",                      300_000, "👜","accessory",None,0),
+                ("Гермэс Биркин",     "Hermès Birkin — дэлхийн хамгийн үнэтэй цүнх",          1_500_000, "👛","accessory",None,0),
+                ("Алтан Бугуйвч",     "Картьегийн алтан Love бугуйвч",                          250_000, "📿","accessory",None,0),
+                ("Бриллиант Титэм",   "Бриллиант чулуутай алтан титэм",                       5_000_000, "👑","accessory",None,0),
+            ]
+            await db.executemany(
+                "INSERT INTO shop (name,description,price,emoji,item_type,effect_type,effect_value)"
+                " VALUES (?,?,?,?,?,?,?)",
+                luxury_v2
+            )
+            await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('shop_luxury_v2','1')")
+
+        # ── Luxury food items (shop_luxury_food_v1) ───────────────────
+        cur_lf = await db.execute("SELECT value FROM bot_config WHERE key='shop_luxury_food_v1'")
+        if not await cur_lf.fetchone():
+            luxury_food = [
+                ("Суши сет",         "Японы шинэхэн тансаг суши сет",              5_000, "🍣","food","happiness", 15),
+                ("Омар",             "Хүнсний омар — далайн тансаг хоол",         12_000, "🦞","food","happiness", 20),
+                ("Вагю Бургер",      "A5 Wagyu үхрийн мах бургер",                20_000, "🍔","food","happiness", 25),
+                ("Вагю Стейк",       "Японы A5 Wagyu үхрийн мах стейк",           50_000, "🥩","food","happiness", 35),
+                ("Трюфель хоол",     "Хар трюфельтэй тансаг Франц хоол",         100_000, "🍽️","food","happiness", 50),
+                ("Белуга Хавиар",    "Белуга загасны өндөг — дэлхийн хамгийн үнэтэй хоол", 300_000, "🫧","food","happiness", 80),
+                ("Алтан Пицца",      "24К алтан навчаар чимэглэсэн тансаг пицца", 500_000, "🍕","food","happiness",100),
+            ]
+            await db.executemany(
+                "INSERT INTO shop (name,description,price,emoji,item_type,effect_type,effect_value)"
+                " VALUES (?,?,?,?,?,?,?)",
+                luxury_food
+            )
+            await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('shop_luxury_food_v1','1')")
+
         await db.commit()
 
     # ── One-time data restore ─────────────────────────────────────
