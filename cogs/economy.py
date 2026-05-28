@@ -181,7 +181,7 @@ class Economy(commands.Cog):
                 value=f"+{_child_bonus:.0%} нэмэгдэл",
                 inline=True
             )
-        embed.set_footer(text=f"TOP Bot  •  /work  •  15 минут тутамд")
+        embed.set_footer(text=f"TOP Bot  •  /work  •  5 минут тутамд  •  Аз жаргал 30 минут тутамд -1")
         await ctx.send(embed=embed)
 
     # ── Өдөр тутмын урамшуулал ────────────────────────────────
