@@ -39,12 +39,12 @@ ENEMIES = [
 # ── Шагай ─────────────────────────────────────────────────────
 SHAGAI_SIDES   = ["Морь", "Хонь", "Тэмээ", "Ямаа"]
 SHAGAI_EMOJIS  = {"Морь": "\U0001f434", "Хонь": "\U0001f411", "Тэмээ": "\U0001f42a", "Ямаа": "\U0001f410"}
-SHAGAI_WEIGHTS = [6, 47, 15, 38]
+SHAGAI_WEIGHTS = [12, 35, 25, 28]  # Морь↑ Хонь↓ Тэмээ↑ Ямаа↓
 
-# Nerfed: 4x Морь 200->100, 4x Тэмээ 50->40
+# Multipliers (original)
 SHAGAI_4X = {"Морь": 100, "Тэмээ": 40, "Ямаа": 12, "Хонь": 8}
-# Nerfed: 3x Ямаа/Хонь 1.5->0.5 (partial loss)
-SHAGAI_3X = {"Морь": 15, "Тэмээ": 8, "Ямаа": 0.5, "Хонь": 0.5}
+SHAGAI_3X = {"Морь": 15,  "Тэмээ": 8,  "Ямаа": 0.5, "Хонь": 0.5}
+SHAGAI_BERH_MULT = 5  # 4 Бэрх multiplier
 
 ROULETTE_RED = {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36}
 
@@ -59,7 +59,7 @@ def evaluate_shagai(dice: list) -> tuple:
     top_cnt = max(counts.values())
 
     if len(counts) == 4:
-        return 5.0, "\u26a1 **4 Бэрх** — Морь+Тэмээ+Хонь+Ямаа — 5x"
+        return float(SHAGAI_BERH_MULT), f"⚡ **4 Бэрх** — Морь+Тэмээ+Хонь+Ямаа — {SHAGAI_BERH_MULT}x"
 
     if top_cnt == 4:
         animal = next(k for k, v in counts.items() if v == 4)
@@ -682,3 +682,4 @@ class Games(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Games(bot))
+                                      
