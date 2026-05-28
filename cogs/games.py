@@ -681,4 +681,4 @@ class Games(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_
+    await bot.add_cog(Games(bot))
