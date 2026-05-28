@@ -39,12 +39,12 @@ ENEMIES = [
 # ── Шагай ─────────────────────────────────────────────────────
 SHAGAI_SIDES   = ["Морь", "Хонь", "Тэмээ", "Ямаа"]
 SHAGAI_EMOJIS  = {"Морь": "\U0001f434", "Хонь": "\U0001f411", "Тэмээ": "\U0001f42a", "Ямаа": "\U0001f410"}
-SHAGAI_WEIGHTS = [10, 42, 14, 34]
+SHAGAI_WEIGHTS = [8, 45, 12, 35]
 
 # Nerfed: 4x Морь 200->100, 4x Тэмээ 50->40
-SHAGAI_4X = {"Морь": 100, "Тэмээ": 40, "Ямаа": 12, "Хонь": 8}
+SHAGAI_4X = {"Морь": 120, "Тэмээ": 50, "Ямаа": 15, "Хонь": 10}
 # Nerfed: 3x Ямаа/Хонь 1.5->0.5 (partial loss)
-SHAGAI_3X = {"Морь": 18, "Тэмээ": 10, "Ямаа": 0.8, "Хонь": 0.8}
+SHAGAI_3X = {"Морь": 20, "Тэмээ": 12, "Ямаа": 0.9, "Хонь": 0.9}
 
 ROULETTE_RED = {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36}
 
@@ -59,7 +59,7 @@ def evaluate_shagai(dice: list) -> tuple:
     top_cnt = max(counts.values())
 
     if len(counts) == 4:
-        return 5.0, "\u26a1 **4 Бэрх** — Морь+Тэмээ+Хонь+Ямаа — 5x"
+        return 6.0, "\u26a1 **4 Бэрх** — Морь+Тэмээ+Хонь+Ямаа — 6x"
 
     if top_cnt == 4:
         animal = next(k for k, v in counts.items() if v == 4)
@@ -135,7 +135,7 @@ class Games(commands.Cog):
     # ══════════════════════════════════════════════════════════
     #  /coinflip  — nerfed to 1.7x (was 2x)
     # ══════════════════════════════════════════════════════════
-    @commands.hybrid_command(name="coinflip", description="Зоос шидэх — 50/50 | <1M=2x | 1M+=2.2x")
+    @commands.hybrid_command(name="coinflip", description="Зоос шидэх — 50/50 | <1M=2x | 1M+=2.35x")
     @app_commands.describe(choice="Таны сонголт", bet="Бооцооны дүн")
     @app_commands.choices(choice=[
         app_commands.Choice(name="\U0001f985 Толгой (Heads)", value="heads"),
@@ -157,8 +157,8 @@ class Games(commands.Cog):
 
         if result == choice:
             if bet >= 1_000_000:
-                winnings = int(bet * 1.2)  # 2.2x net
-                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** \U0001f525 **2.2x** (том бооцоо)"
+                winnings = int(bet * 1.35)  # 2.35x net
+                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** \U0001f525 **2.35x** (том бооцоо)"
             else:
                 winnings = int(bet * 1.0)
                 outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** (2x)"
@@ -266,7 +266,7 @@ class Games(commands.Cog):
 
         won  = False
         mult = 1
-        flat_mult = 2.2 if big_bet else 2.0
+        flat_mult = 2.35 if big_bet else 2.0
         if bet_type == "red"    and spin != 0 and spin in ROULETTE_RED:     won, mult = True, flat_mult
         elif bet_type == "black" and spin != 0 and spin not in ROULETTE_RED: won, mult = True, flat_mult
         elif bet_type == "odd"   and spin != 0 and spin % 2 == 1:           won, mult = True, flat_mult
@@ -276,7 +276,7 @@ class Games(commands.Cog):
 
         if won:
             winnings   = int(bet * (mult - 1))
-            bonus_note = " \U0001f525 **Том бооцоо 2.2x!**" if big_bet and mult == 2.2 else ""
+            bonus_note = " \U0001f525 **Том бооцоо 2.35x!**" if big_bet and mult == 2.35 else ""
             outcome    = f"\u2705 Хожлоо! **+{winnings:,} \u20ae** ({mult}x){bonus_note}"
         else:
             winnings = -bet
