@@ -462,6 +462,40 @@ async def init_db():
                 await db.execute("UPDATE shop SET emoji=? WHERE name=?", (emoji, name))
             await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('vehicle_emoji_v1','1')")
 
+        # ── Luxury items (shop_luxury_v1) ────────────────────────────
+        cur_lux = await db.execute("SELECT value FROM bot_config WHERE key='shop_luxury_v1'")
+        if not await cur_lux.fetchone():
+            luxury_items = [
+                # ── Тансаг архи (luxury alcohol) ──────────────────────
+                ("Хийн Архи",          "Тансаг хийн архи — хагас литр",                   8_000, "🥂","alcohol","sogto", 6),
+                ("Жонни Вокер",        "Johnnie Walker Black Label — 12 жил",             20_000, "🥃","alcohol","sogto", 7),
+                ("Хенесси",            "Hennessy VS Коньяк — Франц тансаг архи",          50_000, "🍾","alcohol","sogto", 8),
+                ("Макаллан 18",        "The Macallan 18 — Scottish single malt",         100_000, "🥃","alcohol","sogto", 9),
+                ("Луи XIII",           "Louis XIII Cognac — дэлхийн хамгийн тансаг",     300_000, "👑","alcohol","sogto",10),
+                ("Прэмиум Тансаг Архи","Хамгийн ховор, хамгийн үнэтэй архи — VIP only", 500_000, "💎","alcohol","sogto",12),
+                # ── Тансаг тамхи (luxury cigarettes) ──────────────────
+                ("Коибa Сигар",        "Кубын алдарт Cohiba сигар — 1 ширхэг",             5_000, "🚬","cigarette","mansuuralt", 4),
+                ("Ромео и Жульета",    "Romeo y Julieta — тансаг Хаванна сигар",          15_000, "🚬","cigarette","mansuuralt", 5),
+                ("Давидофф",           "Davidoff Siglo VI — Швейцарь тансаг сигар",       30_000, "💨","cigarette","mansuuralt", 6),
+                ("Оппенхеймер",        "Oppenheimer — хязгааргүй хэмжээний тансаг сигар", 60_000, "🏆","cigarette","mansuuralt", 7),
+                ("Алтан Тамхи",        "Алтан фольгоор бүрсэн дэлхийн хамгийн үнэтэй тамхи",100_000,"👑","cigarette","mansuuralt", 8),
+                # ── Үл хөдлөх хөрөнгө (real estate) ──────────────────
+                ("Орон сууц",          "Нэг өрөө орон сууц — хотын төвд",               500_000, "🏠","realestate",None,0),
+                ("Том орон сууц",      "Гурван өрөө тансаг орон сууц",                1_500_000, "🏡","realestate",None,0),
+                ("Тансаг байшин",      "Хотын захын гоё тансаг байшин",               5_000_000, "🏰","realestate",None,0),
+                ("Пентхаус",           "Барилгын дээд давхрын VIP пентхаус",         15_000_000, "🌆","realestate",None,0),
+                ("Ордон",              "Хаадын ордон — дэлхийд цор ганц",            50_000_000, "👑","realestate",None,0),
+                # ── Тансаг вэйп (luxury vape) ─────────────────────────
+                ("Кристалл Вэйп",      "Swarovski чулуутай тансаг вэйп",                  8_000, "💠","vape","mansuuralt", 6),
+                ("Алтан Вэйп",         "24К алтаар бүрсэн тансаг вэйп",                  25_000, "🟡","vape","mansuuralt", 7),
+            ]
+            await db.executemany(
+                "INSERT INTO shop (name,description,price,emoji,item_type,effect_type,effect_value)"
+                " VALUES (?,?,?,?,?,?,?)",
+                luxury_items
+            )
+            await db.execute("INSERT OR REPLACE INTO bot_config (key,value) VALUES ('shop_luxury_v1','1')")
+
         await db.commit()
 
     # ── One-time data restore ─────────────────────────────────────
