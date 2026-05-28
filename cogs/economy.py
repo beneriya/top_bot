@@ -239,6 +239,30 @@ class Economy(commands.Cog):
         now = datetime.utcnow()
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
+            # ── Sender character check ────────────────────────────────
+            sender_char = await (await db.execute(
+                "SELECT user_id FROM character_info WHERE user_id=? AND guild_id=?",
+                (ctx.author.id, ctx.guild.id)
+            )).fetchone()
+            if not sender_char:
+                await ctx.send(
+                    "🎭 Эхлээд **`/register`** командаар дүр үүсгэнэ үү!\n"
+                    "Дүр үүсгэхгүйгээр мөнгө шилжүүлэх боломжгүй.",
+                    ephemeral=True
+                )
+                return
+            # ── Receiver character check ──────────────────────────────
+            recv_char = await (await db.execute(
+                "SELECT user_id FROM character_info WHERE user_id=? AND guild_id=?",
+                (member.id, ctx.guild.id)
+            )).fetchone()
+            if not recv_char:
+                await ctx.send(
+                    f"❌ **{member.display_name}** дүр үүсгээгүй байна!\n"
+                    "Дүргүй хүнд мөнгө шилжүүлэх боломжгүй.",
+                    ephemeral=True
+                )
+                return
             # Per-recipient cooldown check
             cd_row = await (await db.execute(
                 "SELECT last_sent FROM transfer_cooldowns WHERE sender_id=? AND recipient_id=? AND guild_id=?",
