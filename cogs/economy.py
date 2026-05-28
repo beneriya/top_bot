@@ -343,77 +343,172 @@ class Economy(commands.Cog):
     async def shop(self, ctx: commands.Context, category: str = None):
         OTHER_TYPES = ("weapon", "armor", "heal", "ticket", "adoption")
 
-        # Category comes as plain string from choices decorator
-        # (no conversion needed)
+        # ── Категори сонгоогүй үед — категорийн menu харуулна ────
+        if category is None:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                counts_cur = await db.execute(
+                    "SELECT item_type, COUNT(*) as cnt, MIN(price) as min_p, MAX(price) as max_p FROM shop GROUP BY item_type"
+                )
+                counts = await counts_cur.fetchall()
 
-        # ── Real-estate category — informational, not a shop item ──
-        if category == "realestate":
-            from database import HOUSES
+            count_map = {r["item_type"]: (r["cnt"], r["min_p"], r["max_p"]) for r in counts}
+
             embed = discord.Embed(
-                title="🏠 Үл хөдлөх хөрөнгө",
-                description=(
-                    "Байшин нь дэлгүүрээс биш `/buyhouse` командаар авна.\n"
-                    "Зарахдаа `/sellhouse`, ахиулахдаа `/upgradehouse` ашиглана уу."
-                ),
+                title="🏪 TOP Дэлгүүр",
+                description="Категори сонгоод нарийвчилсан жагсаалт харна уу.\n"
+                            "Жишээ: `/shop alcohol` эсвэл `/shop gem`",
                 color=0x9B59B6
             )
-            for lv, (name, price) in HOUSES.items():
+
+            CAT_ORDER = [
+                ("alcohol",    "🍺 Архи"),
+                ("cigarette",  "🚬 Тамхи"),
+                ("vape",       "💨 Вэйп"),
+                ("ring",       "💍 Бөгж"),
+                ("accessory",  "⌚ Аксессуар"),
+                ("gem",        "💎 Үнэт чулуу"),
+                ("vehicle",    "🚗 Хөдлөх хөрөнгө"),
+                ("realestate", "🏠 Үл хөдлөх хөрөнгө (дэлгүүрт байхгүй)"),
+                ("food",       "🍽️ Хоол/Идэш"),
+                ("other",      "⚔️ Тоглоом/Бусад"),
+            ]
+
+            for itype, label in CAT_ORDER:
+                if itype == "realestate":
+                    embed.add_field(
+                        name=label,
+                        value="`/shop realestate` — `/buyhouse` командаар авна",
+                        inline=False
+                    )
+                    continue
+                # "other" нь олон type-аас бүрдэнэ
+                if itype == "other":
+                    cnt = sum(count_map.get(t, (0,))[0] for t in OTHER_TYPES)
+                    min_p = min((count_map[t][1] for t in OTHER_TYPES if t in count_map), default=0)
+                    max_p = max((count_map[t][2] for t in OTHER_TYPES if t in count_map), default=0)
+                else:
+                    info = count_map.get(itype)
+                    if not info:
+                        continue
+                    cnt, min_p, max_p = info
+
                 embed.add_field(
-                    name=f"Түвшин {lv} — {name}",
-                    value=f"**{price:,} ₮**",
-                    inline=False
+                    name=label,
+                    value=f"{cnt} бараа · `{min_p:,}₮` – `{max_p:,}₮`",
+                    inline=True
                 )
-            embed.set_footer(text="/buyhouse командаар авна уу  •  зарахдаа /sellhouse")
+
+            embed.set_footer(text="/buy <ID> командаар авна уу  •  /shop <категори> нарийвчилсан жагсаалт")
             await ctx.send(embed=embed)
             return
 
+        # ── Real-estate category — informational ──────────────────
+        if category == "realestate":
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute(
+                    "SELECT * FROM shop WHERE item_type='realestate' ORDER BY price"
+                )
+                re_items = await cursor.fetchall()
+
+            embed = discord.Embed(
+                title="🏠 Үл хөдлөх хөрөнгө",
+                color=0x9B59B6
+            )
+            if re_items:
+                lines = []
+                for item in re_items:
+                    lines.append(
+                        f"{item['emoji']} **{item['name']}** — `{item['price']:,} ₮`\n"
+                        f"　ID: `{item['item_id']}` · {item['description']}"
+                    )
+                embed.description = "\n".join(lines)
+            else:
+                embed.description = (
+                    "Байшин нь дэлгүүрээс биш `/buyhouse` командаар авна.\n"
+                    "Зарахдаа `/sellhouse`, ахиулахдаа `/upgradehouse` ашиглана уу."
+                )
+            embed.set_footer(text="/buy <ID> командаар авна уу")
+            await ctx.send(embed=embed)
+            return
+
+        # ── Тодорхой категори — items харуулна ───────────────────
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
-            if category and category not in ("other", "realestate"):
+            if category != "other":
                 cursor = await db.execute(
                     "SELECT * FROM shop WHERE item_type=? ORDER BY price", (category,)
                 )
-            elif category == "other":
+            else:
                 placeholders = ",".join("?" * len(OTHER_TYPES))
                 cursor = await db.execute(
                     f"SELECT * FROM shop WHERE item_type IN ({placeholders}) ORDER BY price",
                     OTHER_TYPES
                 )
-            else:
-                cursor = await db.execute("SELECT * FROM shop ORDER BY item_type, price")
             items = await cursor.fetchall()
 
-        title = f"🏪 Дэлгүүр — {self.CATEGORY_LABELS.get(category, f'❓ {category}')}" if category else "🏪 Дэлгүүр"
+        cat_label = self.CATEGORY_LABELS.get(category, f"❓ {category}")
+        title = f"🏪 Дэлгүүр — {cat_label}"
 
-        embed = discord.Embed(title=title, color=0x9B59B6)
-        if not items:
-            embed.description = "Бараа байхгүй байна."
-        else:
-            lines = []
-            for item in items:
-                eff = ""
-                if item["effect_type"] == "sogto":
-                    eff = f" *(+{item['effect_value']} согтолт)*"
-                elif item["effect_type"] == "mansuuralt":
-                    eff = f" *(+{item['effect_value']} мансуурал)*"
-                elif item["effect_type"] == "happiness":
-                    eff = f" *(+{item['effect_value']} аз жаргал)*"
-                lines.append(
-                    f"{item['emoji']} **{item['name']}** — `{item['price']:,} ₮`{eff}\n"
-                    f"　ID: `{item['item_id']}` · {item['description']}"
-                )
-            chunk = ""
-            for line in lines:
-                if len(chunk) + len(line) > 950:
-                    embed.add_field(name="​", value=chunk, inline=False)
-                    chunk = line + "\n"
+        # Олон embed болгон хуваана (6000 тэмдэгт хязгаараас хамгаалнa)
+        lines = []
+        for item in items:
+            eff = ""
+            if item["effect_type"] == "sogto":
+                eff = f" *(+{item['effect_value']} согтолт)*"
+            elif item["effect_type"] == "mansuuralt":
+                eff = f" *(+{item['effect_value']} мансуурал)*"
+            elif item["effect_type"] == "happiness":
+                eff = f" *(+{item['effect_value']} аз жаргал)*"
+            lines.append(
+                f"{item['emoji']} **{item['name']}** — `{item['price']:,} ₮`{eff}\n"
+                f"　ID: `{item['item_id']}` · {item['description']}"
+            )
+
+        # Embed-үүд байгуулах (нэг embed 4000 тэмдэгт)
+        embeds = []
+        current_embed = discord.Embed(title=title, color=0x9B59B6)
+        current_size = len(title)
+        chunk = ""
+
+        for line in lines:
+            line_with_newline = line + "\n"
+            if len(chunk) + len(line_with_newline) > 900:
+                if chunk:
+                    field_val = chunk.strip()
+                    if current_size + len(field_val) > 5500:
+                        current_embed.set_footer(text="/buy <ID> командаар авна уу")
+                        embeds.append(current_embed)
+                        current_embed = discord.Embed(title=f"{title} (үргэлжлэл)", color=0x9B59B6)
+                        current_size = len(title) + 12
+                    current_embed.add_field(name="​", value=field_val, inline=False)
+                    current_size += len(field_val)
+                    chunk = line_with_newline
                 else:
-                    chunk += line + "\n"
-            if chunk:
-                embed.add_field(name="​", value=chunk, inline=False)
+                    chunk = line_with_newline
+            else:
+                chunk += line_with_newline
 
-        embed.set_footer(text="/buy <ID> командаар авна уу  •  категори сонгоход нарийвчилсан жагсаалт харагдана")
-        await ctx.send(embed=embed)
+        if chunk:
+            field_val = chunk.strip()
+            if current_size + len(field_val) > 5500:
+                current_embed.set_footer(text="/buy <ID> командаар авна уу")
+                embeds.append(current_embed)
+                current_embed = discord.Embed(title=f"{title} (үргэлжлэл)", color=0x9B59B6)
+            current_embed.add_field(name="​", value=field_val, inline=False)
+
+        if not lines:
+            current_embed.description = "Бараа байхгүй байна."
+
+        current_embed.set_footer(text="/buy <ID> командаар авна уу  •  /shop категори сонгоно уу")
+        embeds.append(current_embed)
+
+        for i, emb in enumerate(embeds):
+            if i == 0:
+                await ctx.send(embed=emb)
+            else:
+                await ctx.send(embed=emb)
 
     # ── Бараа худалдаж авах ────────────────────────────────────
     @commands.hybrid_command(name="buy", description="Дэлгүүрээс бараа авах  —  /buy 93  эсвэл  /buy 93 10")
