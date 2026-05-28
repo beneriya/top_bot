@@ -656,24 +656,51 @@ class Economy(commands.Cog):
             """, (ctx.author.id, ctx.guild.id))
             items = await cursor.fetchall()
 
-        embed = discord.Embed(
+        if not items:
+            embed = discord.Embed(
+                title=f"🎒 {ctx.author.display_name}-н зүйлс",
+                description="Inventory хоосон байна. /shop-оос зүйлс авна уу!",
+                color=discord.Color.orange()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        # Бүх зүйлийг текст мөр болгон хуримтлуулж, 25 field хязгаараас сэргийлнэ
+        lines = []
+        for item in items:
+            if item["item_type"] in ("weapon", "armor"):
+                qty_label = f"эдэлгээ: {item['quantity']}"
+            else:
+                qty_label = f"x{item['quantity']}"
+            lines.append(f"{item['emoji']} **{item['name']}** ({qty_label}) · ID:`{item['item_id']}`")
+
+        # Chunk болгон хуваана — нэг embed 4000 тэмдэгт, нэг field 1000 тэмдэгт
+        embeds = []
+        current_embed = discord.Embed(
             title=f"🎒 {ctx.author.display_name}-н зүйлс",
             color=discord.Color.orange()
         )
-        if not items:
-            embed.description = "Inventory хоосон байна. /дэлгүүр-ээс зүйлс авна уу!"
-        else:
-            for item in items:
-                if item["item_type"] in ("weapon", "armor"):
-                    qty_label = f"эдэлгээ: {item['quantity']}"
-                else:
-                    qty_label = f"x{item['quantity']}"
-                embed.add_field(
-                    name=f"{item['emoji']} {item['name']} ({qty_label})",
-                    value=f"ID: `{item['item_id']}`",
-                    inline=True
-                )
-        await ctx.send(embed=embed)
+        chunk = ""
+        for line in lines:
+            if len(chunk) + len(line) + 1 > 900:
+                current_embed.add_field(name="​", value=chunk.strip(), inline=False)
+                chunk = line + "\n"
+                # 24 field дүүрвэл шинэ embed
+                if len(current_embed.fields) >= 24:
+                    embeds.append(current_embed)
+                    current_embed = discord.Embed(
+                        title=f"🎒 {ctx.author.display_name}-н зүйлс (үргэлжлэл)",
+                        color=discord.Color.orange()
+                    )
+            else:
+                chunk += line + "\n"
+
+        if chunk:
+            current_embed.add_field(name="​", value=chunk.strip(), inline=False)
+        embeds.append(current_embed)
+
+        for emb in embeds:
+            await ctx.send(embed=emb)
 
     # ── Баянчуудын жагсаалт ───────────────────────────────────
     @commands.hybrid_command(name="richlist", description="Серверийн хамгийн баян хүмүүс")
