@@ -299,7 +299,7 @@ async def on_ready():
         logger.error(f"Sync алдаа: {e}")
 
 async def load_cogs():
-    cogs = ["character", "economy", "levels", "games", "family", "stats", "roles", "substances", "help", "admin"]
+    cogs = ["character", "economy", "levels", "games", "family", "stats", "roles", "substances", "help", "admin", "apply"]
     for cog in cogs:
         try:
             await bot.load_extension(f"cogs.{cog}")
