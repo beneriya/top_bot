@@ -133,7 +133,7 @@ class Substances(commands.Cog):
     async def _recover_loop(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
-            await asyncio.sleep(1800)
+            await asyncio.sleep(300)
             try:
                 now_iso = datetime.utcnow().isoformat()
                 async with aiosqlite.connect(DB_PATH) as db:
@@ -261,7 +261,7 @@ class Substances(commands.Cog):
         if new_level == MAX_LEVEL:
             embed.set_footer(text="⚠️  MAX! Дахин уувал 30 минутын турш эрүүлжүүлэхэд орно!")
         else:
-            embed.set_footer(text="30 минут тутамд согтолт -1 автоматаар буурна")
+            embed.set_footer(text="5 минут тутамд согтолт -1 автоматаар буурна")
         await ctx.send(embed=embed)
 
     # ────────────────────────────────────────────────────────────
@@ -313,7 +313,7 @@ class Substances(commands.Cog):
                 color=0xCC0000
             )
             embed.set_thumbnail(url=ctx.author.display_avatar.url)
-            embed.set_footer(text="30 минут тутамд мансуурал автоматаар буурна")
+            embed.set_footer(text="5 минут тутамд мансуурал автоматаар буурна")
             await ctx.send(embed=embed)
             return
 
@@ -356,7 +356,7 @@ class Substances(commands.Cog):
         if new_level == MAX_LEVEL:
             embed.set_footer(text="⚠️  MAX! Дахин хэрэглэвэл эрүүл мэндийн зардал суутгагдана!")
         else:
-            embed.set_footer(text="30 минут тутамд мансуурал -1 автоматаар буурна")
+            embed.set_footer(text="5 минут тутамд мансуурал -1 автоматаар буурна")
         await ctx.send(embed=embed)
 
     # ────────────────────────────────────────────────────────────
@@ -384,7 +384,7 @@ class Substances(commands.Cog):
             inline=False
         )
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
-        embed.set_footer(text="30 минут тутамд автоматаар -1 буурна  •  /drink /smoke нэмнэ")
+        embed.set_footer(text="5 минут тутамд автоматаар -1 буурна  •  /drink /smoke нэмнэ")
         await ctx.send(embed=embed)
 
     # ────────────────────────────────────────────────────────────
