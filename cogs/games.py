@@ -39,12 +39,12 @@ ENEMIES = [
 # ── Шагай ─────────────────────────────────────────────────────
 SHAGAI_SIDES   = ["Морь", "Хонь", "Тэмээ", "Ямаа"]
 SHAGAI_EMOJIS  = {"Морь": "\U0001f434", "Хонь": "\U0001f411", "Тэмээ": "\U0001f42a", "Ямаа": "\U0001f410"}
-SHAGAI_WEIGHTS = [8, 45, 12, 35]
+SHAGAI_WEIGHTS = [10, 42, 14, 34]
 
 # Nerfed: 4x Морь 200->100, 4x Тэмээ 50->40
 SHAGAI_4X = {"Морь": 100, "Тэмээ": 40, "Ямаа": 12, "Хонь": 8}
 # Nerfed: 3x Ямаа/Хонь 1.5->0.5 (partial loss)
-SHAGAI_3X = {"Морь": 15, "Тэмээ": 8, "Ямаа": 0.5, "Хонь": 0.5}
+SHAGAI_3X = {"Морь": 18, "Тэмээ": 10, "Ямаа": 0.8, "Хонь": 0.8}
 
 ROULETTE_RED = {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36}
 
@@ -135,7 +135,7 @@ class Games(commands.Cog):
     # ══════════════════════════════════════════════════════════
     #  /coinflip  — nerfed to 1.7x (was 2x)
     # ══════════════════════════════════════════════════════════
-    @commands.hybrid_command(name="coinflip", description="Зоос шидэх — 50/50 | <500k=1.7x | 500k+=2x")
+    @commands.hybrid_command(name="coinflip", description="Зоос шидэх — 50/50 | <1M=2x | 1M+=2.5x")
     @app_commands.describe(choice="Таны сонголт", bet="Бооцооны дүн")
     @app_commands.choices(choice=[
         app_commands.Choice(name="\U0001f985 Толгой (Heads)", value="heads"),
@@ -157,11 +157,11 @@ class Games(commands.Cog):
 
         if result == choice:
             if bet >= 1_000_000:
-                winnings = bet          # 2.0x net (profit = bet)
-                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** \U0001f525 **2x** (том бооцоо)"
+                winnings = int(bet * 1.5)  # 2.5x net
+                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** \U0001f525 **2.5x** (том бооцоо)"
             else:
-                winnings = int(bet * 0.70)
-                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** (1.7x)"
+                winnings = int(bet * 1.0)
+                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** (2x)"
             color = discord.Color.green()
         else:
             winnings = -bet
@@ -266,7 +266,7 @@ class Games(commands.Cog):
 
         won  = False
         mult = 1
-        flat_mult = 2.0 if big_bet else 1.7
+        flat_mult = 2.5 if big_bet else 2.0
         if bet_type == "red"    and spin != 0 and spin in ROULETTE_RED:     won, mult = True, flat_mult
         elif bet_type == "black" and spin != 0 and spin not in ROULETTE_RED: won, mult = True, flat_mult
         elif bet_type == "odd"   and spin != 0 and spin % 2 == 1:           won, mult = True, flat_mult
@@ -276,7 +276,7 @@ class Games(commands.Cog):
 
         if won:
             winnings   = int(bet * (mult - 1))
-            bonus_note = " \U0001f525 **Том бооцоо 2x!**" if big_bet and mult == 2.0 else ""
+            bonus_note = " \U0001f525 **Том бооцоо 2.5x!**" if big_bet and mult == 2.5 else ""
             outcome    = f"\u2705 Хожлоо! **+{winnings:,} \u20ae** ({mult}x){bonus_note}"
         else:
             winnings = -bet
@@ -351,7 +351,7 @@ class Games(commands.Cog):
                 "\u2502  4\u0445 \u0422\u044d\u043c\u044d\u044d         ->    40\u0445      \u2502\n"
                 "\u2502  4\u0445 \u042f\u043c\u0430\u0430          ->    12\u0445      \u2502\n"
                 "\u2502  4\u0445 \u0425\u043e\u043d\u044c          ->     8\u0445      \u2502\n"
-                "\u2502  \u0411\u0435\u0440\u0445 (4 \u04e9\u04e9\u0440)      ->     5\u0445      \u2502\n"
+                "\u2502  \u0411\u044d\u0440\u0445 (4 \u04e9\u04e9\u0440)      ->     5\u0445      \u2502\n"
                 "\u2502  3\u0445 \u041c\u043e\u0440\u044c          ->    15\u0445      \u2502\n"
                 "\u2502  3\u0445 \u0422\u044d\u043c\u044d\u044d         ->     8\u0445      \u2502\n"
                 "\u2502  3\u0445 \u042f\u043c\u0430\u0430/\u0425\u043e\u043d\u044c  -> -50% \u0430\u043b\u0434\u0430\u0433 \u2502\n"
@@ -489,7 +489,7 @@ class Games(commands.Cog):
             )
             embed.add_field(name="💰 Шагнал",  value=f"**{reward:,} ₮**", inline=True)
             embed.add_field(name="❤️ HP",       value=f"`{bar_now}` {new_hp}/{max_hp}", inline=True)
-            embed.add_field(name="💀 Алуулга", value=f"**{total_kills}** 💀", inline=True)
+            embed.add_field(name="💀 Алагийн тоо", value=f"**{total_kills}** 💀", inline=True)
         else:
             async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute(

@@ -887,7 +887,7 @@ class Economy(commands.Cog):
                 release = now + timedelta(minutes=30)
                 async with aiosqlite.connect(DB_PATH) as db:
                     await db.execute(
-                        "UPDATE users SET prison_until=?, prison_reason='rob' WHERE user_id=? AND guild_id=?",
+                        "UPDATE users SET prison_until=?, prison_reason='rob', tension=0, prison_count=COALESCE(prison_count,0)+1 WHERE user_id=? AND guild_id=?",
                         (release.isoformat(), uid, gid)
                     )
                     await db.commit()
@@ -1013,7 +1013,7 @@ class Economy(commands.Cog):
                 release = now + timedelta(minutes=45)
                 async with aiosqlite.connect(DB_PATH) as db:
                     await db.execute(
-                        "UPDATE users SET prison_until=?, prison_reason='hack' WHERE user_id=? AND guild_id=?",
+                        "UPDATE users SET prison_until=?, prison_reason='hack', tension=0, prison_count=COALESCE(prison_count,0)+1 WHERE user_id=? AND guild_id=?",
                         (release.isoformat(), uid, gid)
                     )
                     await db.commit()

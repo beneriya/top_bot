@@ -755,38 +755,8 @@ class Character(commands.Cog):
                             except Exception:
                                 pass
 
-                # 1. Age milestone notifications — зөвхөн owner-д DM илгээнэ
-                cur = await db.execute("SELECT * FROM character_info")
-                chars = await cur.fetchall()
-                for char in chars:
-                    char = dict(char)
-                    age = calc_age(char)
-                    if age >= char.get("death_age", 999):
-                        continue
-                    last_ms = char.get("last_milestone") or 0
-                    for ms in MILESTONES:
-                        if age >= ms > last_ms:
-                            try:
-                                target_user = await self.bot.fetch_user(char["user_id"])
-                                embed = discord.Embed(
-                                    title="🎂 Насны баяр",
-                                    description=(
-                                        f"Таны дүр тоглоомын ертөнцөд "
-                                        f"**{ms} настай** боллоо!"
-                                    ),
-                                    color=0xFF69B4,
-                                )
-                                milestones_left = [m for m in MILESTONES if m > ms]
-                                if milestones_left:
-                                    embed.set_footer(text=f"Дараагийн: {milestones_left[0]} нас")
-                                await target_user.send(embed=embed)
-                            except Exception:
-                                pass
-                            await db.execute(
-                                "UPDATE character_info SET last_milestone=? WHERE user_id=? AND guild_id=?",
-                                (ms, char["user_id"], char["guild_id"]),
-                            )
-                            break
+                # 1. Age milestone notifications — DISABLED (DM илгээхгүй)
+                pass
 
                 # 1b. Virtual child support (0-15 cost) + adult earnings (16+) per bg_task tick
                 vc_cur = await db.execute("SELECT * FROM virtual_children")
@@ -1063,15 +1033,15 @@ class Character(commands.Cog):
         app_commands.Choice(name="🎨 Зураач",                 value="artist"),
         app_commands.Choice(name="💁 Үйлчилгээний ажилтан",   value="service"),
         app_commands.Choice(name="📞 Оператор",               value="operator"),
-        app_commands.Choice(name="💻 Програмист 🔒",          value="programmer"),
-        app_commands.Choice(name="👨‍🍳 Тогооч 🔒",             value="cook"),
-        app_commands.Choice(name="🚗 Жолооч 🔒",              value="driver"),
-        app_commands.Choice(name="👨‍⚕️ Эмч 🔒",               value="doctor"),
-        app_commands.Choice(name="📚 Багш 🔒",                value="teacher"),
-        app_commands.Choice(name="⚖️ Хуульч 🔒",              value="lawyer"),
-        app_commands.Choice(name="📊 Нягтлан бодогч 🔒",      value="accountant"),
-        app_commands.Choice(name="👔 Менежер 🔒",             value="manager"),
-        app_commands.Choice(name="⚙️ Инженер 🔒",             value="engineer"),
+        app_commands.Choice(name="💻 Програмист",             value="programmer"),
+        app_commands.Choice(name="👨‍🍳 Тогооч",               value="cook"),
+        app_commands.Choice(name="🚗 Жолооч",                 value="driver"),
+        app_commands.Choice(name="👨‍⚕️ Эмч",                 value="doctor"),
+        app_commands.Choice(name="📚 Багш",                   value="teacher"),
+        app_commands.Choice(name="⚖️ Хуульч",                 value="lawyer"),
+        app_commands.Choice(name="📊 Нягтлан бодогч",         value="accountant"),
+        app_commands.Choice(name="👔 Менежер",                value="manager"),
+        app_commands.Choice(name="⚙️ Инженер",                value="engineer"),
     ])
     async def setjob(self, ctx: commands.Context, job: str):
         uid, gid = ctx.author.id, ctx.guild.id
