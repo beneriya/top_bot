@@ -135,7 +135,7 @@ class Games(commands.Cog):
     # ══════════════════════════════════════════════════════════
     #  /coinflip  — nerfed to 1.7x (was 2x)
     # ══════════════════════════════════════════════════════════
-    @commands.hybrid_command(name="coinflip", description="Зоос шидэх — 50/50 | <1M=2x | 1M+=2.5x")
+    @commands.hybrid_command(name="coinflip", description="Зоос шидэх — 50/50 | <1M=2x | 1M+=2.2x")
     @app_commands.describe(choice="Таны сонголт", bet="Бооцооны дүн")
     @app_commands.choices(choice=[
         app_commands.Choice(name="\U0001f985 Толгой (Heads)", value="heads"),
@@ -157,8 +157,8 @@ class Games(commands.Cog):
 
         if result == choice:
             if bet >= 1_000_000:
-                winnings = int(bet * 1.5)  # 2.5x net
-                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** \U0001f525 **2.5x** (том бооцоо)"
+                winnings = int(bet * 1.2)  # 2.2x net
+                outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** \U0001f525 **2.2x** (том бооцоо)"
             else:
                 winnings = int(bet * 1.0)
                 outcome  = f"\u2705 Зөв! **+{winnings:,} \u20ae** (2x)"
@@ -266,7 +266,7 @@ class Games(commands.Cog):
 
         won  = False
         mult = 1
-        flat_mult = 2.5 if big_bet else 2.0
+        flat_mult = 2.2 if big_bet else 2.0
         if bet_type == "red"    and spin != 0 and spin in ROULETTE_RED:     won, mult = True, flat_mult
         elif bet_type == "black" and spin != 0 and spin not in ROULETTE_RED: won, mult = True, flat_mult
         elif bet_type == "odd"   and spin != 0 and spin % 2 == 1:           won, mult = True, flat_mult
@@ -276,7 +276,7 @@ class Games(commands.Cog):
 
         if won:
             winnings   = int(bet * (mult - 1))
-            bonus_note = " \U0001f525 **Том бооцоо 2.5x!**" if big_bet and mult == 2.5 else ""
+            bonus_note = " \U0001f525 **Том бооцоо 2.2x!**" if big_bet and mult == 2.2 else ""
             outcome    = f"\u2705 Хожлоо! **+{winnings:,} \u20ae** ({mult}x){bonus_note}"
         else:
             winnings = -bet
