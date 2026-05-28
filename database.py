@@ -678,7 +678,7 @@ async def get_user(user_id: int, guild_id: int) -> dict:
 async def update_balance(user_id: int, guild_id: int, amount: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE users SET balance = MIN(1000000000, MAX(0, balance + ?)) WHERE user_id=? AND guild_id=?",
+            "UPDATE users SET balance = MIN(3000000000, MAX(0, balance + ?)) WHERE user_id=? AND guild_id=?",
             (amount, user_id, guild_id)
         )
         await db.commit()
